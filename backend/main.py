@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from routers import transacoes  # Importando nosso novo arquivo de rotas
 
 app = FastAPI()
 
-# Isso resolve o problema do botão não funcionar
+# Configuração de CORS (Permite que o Frontend fale com a gente)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -13,16 +13,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class Transacao(BaseModel):
-    descricao: str
-    valor: float
-    tipo: str
+# Conectando as rotas
+app.include_router(transacoes.router)
 
 @app.get("/")
 def home():
-    return {"status": "Sistema Online", "segurança": "Ativada"}
-
-@app.post("/transacoes")
-async def criar_transacao(t: Transacao):
-    print(f"Recebido: {t.descricao} - R$ {t.valor}")
-    return {"mensagem": "Dados encriptados com sucesso!"}
+    return {"status": "MoneyLayer 2.0 - Arquitetura Limpa"}
