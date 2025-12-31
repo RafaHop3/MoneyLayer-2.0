@@ -1,40 +1,33 @@
-from cryptography.fernet import Fernet
-import os
-from dotenv import load_dotenv
+# backend/security.py
+from datetime import datetime, timedelta
+from typing import Optional
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 
-# Carrega o arquivo .env
-load_dotenv()
+# Configurações (Em produção, isso viria do .env)
+SECRET_KEY = "sua_chave_secreta_super_segura_aqui" # Mude isso em produção!
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Tenta ler a chave do arquivo
-chave = os.getenv("MASTER_KEY")
+# Contexto de Criptografia (Bcrypt)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# --- TRUQUE PARA GERAR CHAVE NO INÍCIO ---
-if not chave:
-    print("\n--- ATENÇÃO: MASTER_KEY NÃO ENCONTRADA ---")
-    nova_chave = Fernet.generate_key().decode()
-    print(f"Copie esta chave e cole no seu arquivo .env após 'MASTER_KEY=':")
-    print(f"{nova_chave}")
-    print("-------------------------------------------\n")
-    # Para não travar o teste agora, usamos a chave gerada na memória
-    chave = nova_chave
+def verify_password(plain_password, hashed_password):
+    """Verifica se a senha bate com o hash salvo."""
+    return pwd_context.verify(plain_password, hashed_password)
 
-cipher = Fernet(chave)
+def get_password_hash(password):
+    """Gera o hash seguro da senha."""
+    return pwd_context.hash(password)
 
-def encriptar(texto: str) -> str:
-    """Recebe texto normal, devolve embaralhado"""
-    if not texto: return ""
-    return cipher.encrypt(texto.encode()).decode()
-
-def decriptar(token: str) -> str:
-    """Recebe embaralhado, devolve texto normal"""
-    if not token: return ""
-    try:
-        return cipher.decrypt(token.encode()).decode()
-    except:
-        return "[ERRO: DADO ILEGÍVEL]"
-
-# Teste rápido se rodar este arquivo direto
-if __name__ == "__main__":
-    segredo = encriptar("SenhaDoBanco123")
-    print(f"Encriptado: {segredo}")
-    print(f"Decriptado: {decriptar(segredo)}")
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    """Cria o Token JWT (o crachá)."""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt

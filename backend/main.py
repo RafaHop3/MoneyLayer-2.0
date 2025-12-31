@@ -1,21 +1,12 @@
+# backend/main.py
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from routers import transacoes  # Importando nosso novo arquivo de rotas
+from backend.routers import transactions, auth # <--- Adicione auth
 
-app = FastAPI()
+app = FastAPI(title="MoneyLayer 2.0 API", version="2.0.0")
 
-# Configuração de CORS (Permite que o Frontend fale com a gente)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Conectando as rotas
-app.include_router(transacoes.router)
+app.include_router(auth.router, prefix="/api/v1")         # <--- Rota de Login
+app.include_router(transactions.router, prefix="/api/v1") # Rota de Transações
 
 @app.get("/")
-def home():
-    return {"status": "MoneyLayer 2.0 - Arquitetura Limpa"}
+def read_root():
+    return {"message": "MoneyLayer 2.0 - Secure Mode 🔒"}
