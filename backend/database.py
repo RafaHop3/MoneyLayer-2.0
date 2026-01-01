@@ -1,28 +1,25 @@
-from sqlmodel import SQLModel, Session, create_engine
-from dotenv import load_dotenv  # <--- CERTIFIQUE-SE QUE ESTA LINHA ESTÁ LÁ
-import os
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-# Importar os modelos para que o SQLModel saiba que eles existem
-from backend.models import ledger 
+# URL do Banco (SQLite)
+SQLALCHEMY_DATABASE_URL = "sqlite:///./sql_app.db"
 
-# 1. Carrega as senhas
-load_dotenv()
-database_url = os.getenv("DATABASE_URL")
+# Criação do Engine
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+)
 
-# 2. Cria o motor de conexão
-# O echo=True mostra o SQL no terminal
-engine = create_engine(database_url, echo=True)
+# Sessão
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# 3. Função para criar as tabelas
-def create_db_and_tables():
-    SQLModel.metadata.create_all(engine)
+# Base para os Models
+Base = declarative_base()
 
-# 4. Função para dependência de sessão
-def get_session():
-    with Session(engine) as session:
-        yield session
-
-if __name__ == "__main__":
-    print("⏳ Criando tabelas no banco de dados...")
-    create_db_and_tables()
-    print("✅ Tabelas criadas com sucesso!")
+# Dependência para injetar o banco nas rotas
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
