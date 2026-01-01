@@ -5,7 +5,7 @@ import threading
 import time
 
 # -------------------------------------------------------------------------
-# LÓGICA DE NEGÓCIO BLINDADA (A mesma do Teste)
+# LÓGICA DE NEGÓCIO BLINDADA
 # -------------------------------------------------------------------------
 class SocialMoneyLayer:
     def __init__(self, initial_fund="1000.00"):
@@ -53,12 +53,10 @@ class SocialMoneyLayer:
 
 app = FastAPI(title="MoneyLayer 2.0 - Social Core")
 
-# Instância Global da Camada de Dinheiro
 money_layer = SocialMoneyLayer()
 
-# Modelos de Dados (Pydantic) para validação de entrada
 class DistributeRequest(BaseModel):
-    amount: str  # String para garantir precisão decimal
+    amount: str
     purpose: str
 
 @app.get("/")
@@ -67,12 +65,10 @@ def read_root():
 
 @app.get("/balance")
 def get_balance():
-    """Retorna o saldo global atual."""
     return {"global_social_fund": str(money_layer.get_balance())}
 
 @app.post("/distribute")
 def distribute_funds(request: DistributeRequest):
-    """Tenta distribuir fundos para um interesse social."""
     try:
         success, info = money_layer.distribute_social_value(request.amount, request.purpose)
         if success:
@@ -84,5 +80,4 @@ def distribute_funds(request: DistributeRequest):
 
 @app.get("/audit")
 def get_audit():
-    """Retorna o rastro de auditoria completo."""
     return {"logs": money_layer.get_audit_logs()}
