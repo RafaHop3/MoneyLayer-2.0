@@ -1,45 +1,74 @@
 import './style.css'
 
-// 1. Monta o visual da página (HTML injetado via JS)
 document.querySelector('#app').innerHTML = `
   <div>
     <h1>MoneyLayer 2.0 💸</h1>
-    <div class="card">
-      <button id="btn-enviar" type="button">Testar Integração com Backend</button>
+    
+    <div class="card" style="display: flex; flex-direction: column; gap: 10px; max-width: 300px; margin: 0 auto;">
+      <input type="text" id="input-desc" placeholder="Ex: Coxinha" style="padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
+      
+      <input type="text" id="input-valor" placeholder="Ex: 10.50" style="padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
+      
+      <button id="btn-salvar" type="button" style="background-color: #646cff; color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer;">Trancar no Backend</button>
     </div>
-    <p id="resultado" style="margin-top: 20px; font-weight: bold; color: #646cff;">
-      Aguardando ação...
+
+    <p id="resultado" style="margin-top: 20px; font-weight: bold; color: #888;">
+      Aguardando...
     </p>
   </div>
 `
 
-// 2. Adiciona a inteligência no botão
-document.querySelector('#btn-enviar').addEventListener('click', async () => {
+// Lógica Inteligente
+document.querySelector('#btn-salvar').addEventListener('click', async () => {
   const display = document.querySelector('#resultado');
-  display.innerText = "Enviando dados para o Python...";
+  
+  // 1. PEGAR OS DADOS DA TELA
+  const desc = document.querySelector('#input-desc').value;
+  let valorTexto = document.querySelector('#input-valor').value;
+
+  // 2. CORRIGIR A VÍRGULA (Transforma 0,21 em 0.21)
+  valorTexto = valorTexto.replace(',', '.');
+  const valorFinal = parseFloat(valorTexto);
+
+  // Validação simples
+  if (!desc || isNaN(valorFinal)) {
+    display.innerText = "❌ Erro: Preencha descrição e valor (número) corretamente!";
+    display.style.color = "red";
+    return;
+  }
+
+  display.innerText = "Enviando...";
+  display.style.color = "#FFD700"; // Amarelo (Gold)
 
   try {
-    // Faz a chamada para a sua API (o mesmo que o curl fazia)
-    const resposta = await fetch('http://127.0.0.1:8000/transacoes', {
+    // 3. ENVIAR PARA O PYTHON (LINK DA NUVEM CORRIGIDO)
+    // ATENÇÃO: Estou usando o link que vimos nos logs do seu deploy anterior
+    const resposta = await fetch('https://moneylayer-2-0.onrender.com/transacoes', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        descricao: "Transação via Frontend",
-        valor: 250.00,
-        tipo: "teste_interface"
+        descricao: desc,
+        valor: valorFinal,
+        tipo: "despesa" 
       })
     });
 
-    const dados = await resposta.json();
-    
-    // Mostra a mensagem que veio do Python na tela
-    display.innerText = "Sucesso: " + dados.mensagem;
-    display.style.color = "#00ff88"; // Fica verde se der certo
+    // 4. VERIFICAR A RESPOSTA
+    if (resposta.ok) {
+      const dados = await resposta.json();
+      display.innerText = `✅ Sucesso! ID: ${dados.dados.id} salvo no banco!`;
+      display.style.color = "#00ff88";
+      
+      // Limpar os campos
+      document.querySelector('#input-desc').value = "";
+      document.querySelector('#input-valor').value = "";
+    } else {
+      display.innerText = "❌ Erro no Backend: " + resposta.status;
+      display.style.color = "red";
+    }
 
   } catch (erro) {
-    display.innerText = "Erro: O Backend parece desligado!";
+    display.innerText = "❌ Erro de Conexão (Verifique CORS ou Backend)";
     display.style.color = "red";
     console.error(erro);
   }
