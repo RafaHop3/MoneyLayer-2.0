@@ -1,10 +1,4 @@
 fastapi
 uvicorn
-pydantic
-python-dotenv
-cryptography
-fastapi
-uvicorn
-pydantic
-python-dotenv
-cryptography
+sqlalchemy
+psycopg2-binary

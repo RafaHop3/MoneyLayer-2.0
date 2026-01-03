@@ -9,7 +9,7 @@ try:
     from backend.database import SessionLocal, engine, Base
     print("✅ Conectado ao banco via: backend/database.py")
 except ImportError:
-    # Fallback caso você tenha movido para core
+    # Fallback caso esteja em core
     from backend.core.database import SessionLocal, engine, Base
     print("✅ Conectado ao banco via: backend/core/database.py")
 
@@ -21,7 +21,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def run_seed():
     print("🌱 Iniciando Seed do Money Layer 2.0...")
     
-    # Cria as tabelas (users, transactions)
+    # Cria as tabelas
     Base.metadata.create_all(bind=engine)
     
     db = SessionLocal()
