@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money Layer Dashboard</title>
+    <style>
+        body { 
+            font-family: 'Courier New', Courier, monospace; 
+            background-color: #0d1117; 
+            color: #c9d1d9; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+        }
+        .dashboard { 
+            border: 1px solid #30363d; 
+            padding: 2rem; 
+            border-radius: 12px; 
+            background: #161b22; 
+            width: 380px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); 
+        }
+        h1 { 
+            color: #2ea043; 
+            text-align: center; 
+            margin-bottom: 0.5rem; 
+            font-size: 1.5rem; 
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #8b949e;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 1rem;
+        }
+        .section-title {
+            color: #58a6ff;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            letter-spacing: 1px;
+        }
+        .item { 
+            margin-bottom: 0.8rem; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+        }
+        .label { color: #8b949e; font-size: 0.9rem; }
+        .value { font-weight: bold; }
+        .highlight { color: #e3b341; } /* Amarelo para destacar números */
+        .safe { color: #2ea043; } /* Verde para status seguro */
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <h1>Money Layer</h1>
+        <div class="subtitle" id="header-info">Carregando...</div>
+        
+        <div id="content">Conectando ao sistema...</div>
+    </div>
+
+    <script>
+        // Função para formatar dinheiro (opcional, mas fica bonito)
+        const fmtMoney = (val) => {
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+        };
+
+        fetch('/status') 
+            .then(response => response.json())
+            .then(data => {
+                // Atualiza cabeçalho
+                document.getElementById('header-info').innerText = `${data.service} (${data.version}) | ${data.status}`;
+
+                // Calcula a proporção salarial
+                const minSal = data.governance.min_employee_salary;
+                const ceoSal = data.governance.ceo_salary;
+                const ratio = (ceoSal / minSal).toFixed(1);
+                
+                // Monta o HTML
+                const html = `
+                    <div class="section-title">Missão Social</div>
+                    <div class="item" style="display:block; font-size:0.9rem; font-style:italic; margin-bottom:1rem;">
+                        "${data.social_mission}"
+                    </div>
+
+                    <div class="section-title">Impacto Externo</div>
+                    <div class="item"><span class="label">Taxa Máxima</span><span class="value highlight">${data.governance.max_transaction_fee}%</span></div>
+                    <div class="item"><span class="label">Redistribuição</span><span class="value highlight">${data.governance.social_redistribution_rate}%</span></div>
+
+                    <div class="section-title">Sustentabilidade Interna</div>
+                    <div class="item">
+                        <span class="label">Equidade Salarial</span>
+                        <span class="value safe">${ratio}x a base</span>
+                    </div>
+                    <div class="item" style="font-size: 0.75rem; color: #484f58;">
+                        (Limite Política: 10.0x)
+                    </div>
+                `;
+                document.getElementById('content').innerHTML = html;
+            })
+            .catch(err => {
+                console.error(err);
+                document.getElementById('content').innerHTML = "<span style='color:red'>Erro de conexão com a API Python.</span>";
+            });
+    </script>
+</body>
+</html>
