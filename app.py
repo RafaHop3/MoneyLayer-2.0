@@ -22,7 +22,6 @@ def get_dados():
         cur = conn.cursor()
         cur.execute("SELECT SUM(valor) FROM financeiro WHERE tipo = 'SOCIAL'")
         saldo = cur.fetchone()[0] or 0.0
-        
         cur.execute("SELECT data_transacao, tipo, valor, descricao, destino FROM financeiro ORDER BY data_transacao DESC LIMIT 10")
         extrato = cur.fetchall()
         conn.close()
