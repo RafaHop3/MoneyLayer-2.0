@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoneyLayer Enterprise</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <style>
+        .badge-social { background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:4px; font-weight:bold; }
+        .badge-entrada { background:#e3f2fd; color:#1565c0; padding:2px 8px; border-radius:4px; }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <h1>MoneyLayer 🌍</h1>
+        <article>
+            <header>Fundo Social Acumulado</header>
+            <h1>{{ saldo_formatado }}</h1>
+            <footer>Status: {{ status_scheduler }}</footer>
+        </article>
+        <h3>Auditoria (Últimas 10 Transações)</h3>
+        <figure>
+            <table role="grid">
+                <thead><tr><th>Data</th><th>Tipo</th><th>Valor</th><th>Detalhes</th></tr></thead>
+                <tbody>
+                    {% for item in extrato %}
+                    <tr>
+                        <td>{{ item[0].strftime('%d/%m %H:%M') }}</td>
+                        <td>
+                            {% if item[1] == 'ENTRADA' %}<span class="badge-entrada">RECEITA</span>
+                            {% else %}<span class="badge-social">SOCIAL ❤️</span>{% endif %}
+                        </td>
+                        <td>R$ {{ "%.2f"|format(item[2]) }}</td>
+                        <td>{{ item[3] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </figure>
+    </main>
+</body>
+</html>
