@@ -1,0 +1,43 @@
+cat <<EOF > templates/reports.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Relatórios - MoneyLayer</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --primary: #1e293b; --accent: #38bdf8; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; padding: 20px; }
+        .card { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); max-width: 900px; margin: 20px auto; }
+        .btn-back { text-decoration: none; color: var(--accent); font-weight: bold; margin-bottom: 20px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="btn-back">← Voltar ao Dashboard</a>
+        <div class="card">
+            <h2>📈 Análise de Desempenho</h2>
+            <p>Empresa: <strong>{{ company.name }}</strong> ({{ company.company_type }})</p>
+            <div style="height: 400px;"><canvas id="myChart"></canvas></div>
+        </div>
+    </div>
+    <script>
+        const ctx = document.getElementById('myChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: {{ labels|tojson }},
+                datasets: [{
+                    label: '{{ chart_label }}',
+                    data: {{ data_values|tojson }},
+                    borderColor: '#38bdf8',
+                    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    </script>
+</body>
+</html>
+EOF
