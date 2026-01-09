@@ -75,6 +75,7 @@ def status():
 @app.route("/create-checkout-session", methods=["POST"])
 def create_checkout_session():
     try:
+        import stripe
         checkout_session = stripe.checkout.Session.create(
             line_items=[{
                 "price_data": {
@@ -94,6 +95,7 @@ def create_checkout_session():
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
+    import stripe
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get("Stripe-Signature")
     webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
