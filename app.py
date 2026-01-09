@@ -117,6 +117,7 @@ def webhook():
                 cur.execute("INSERT INTO transactions (amount, type, description) VALUES (%s, %s, %s)", (total, "ENTRADA", "Venda Stripe"))
                 cur.execute("INSERT INTO transactions (amount, type, description) VALUES (%s, %s, %s)", (social, "SOCIAL", "Repasse 5%"))
                 conn.commit()
+                cur.close()
                 conn.close()
         except Exception as e:
             print(f"Erro DB: {e}")
