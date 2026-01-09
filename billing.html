@@ -1,0 +1,41 @@
+cat <<EOF > templates/billing.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Nova Cobrança</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 40px; }
+        .card { max-width: 600px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h2 { color: #334155; }
+        label { display: block; margin-top: 15px; font-weight: bold; color: #475569; }
+        input, select { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+        .btn-bill { background: #2563eb; color: white; border: none; padding: 15px; width: 100%; font-size: 16px; border-radius: 6px; margin-top: 20px; cursor: pointer; }
+        .btn-back { display: block; text-align: center; margin-top: 15px; text-decoration: none; color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>💸 Gerar Cobrança</h2>
+        <p>Recebedor: <strong>{{ company.name }}</strong></p>
+        <hr>
+        <form>
+            <label>Valor da Cobrança (R$)</label>
+            <input type="number" step="0.01" placeholder="100.00">
+            
+            <label>Método de Pagamento</label>
+            <select>
+                <option>Pix (QR Code)</option>
+                <option>Boleto Bancário</option>
+                <option>Link de Cartão de Crédito</option>
+            </select>
+
+            <label>Vencimento</label>
+            <input type="date">
+            
+            <button type="button" class="btn-bill" onclick="alert('Link de Pagamento gerado! Envie para o cliente.')">GERAR LINK</button>
+        </form>
+        <a href="/" class="btn-back">Voltar ao Painel</a>
+    </div>
+</body>
+</html>
+EOF

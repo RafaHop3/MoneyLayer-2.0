@@ -15,7 +15,6 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'index'
 
-# --- MODELOS ---
 class User(UserMixin):
     def __init__(self, id, nickname, is_admin):
         self.id = id
@@ -45,24 +44,43 @@ def load_user(user_id):
     return None
 
 def get_user_company(user_id):
-    conn = psycopg2.connect(DATABASE_URL)
-    cur = conn.cursor()
-    cur.execute("SELECT id, name, company_type, balance FROM companies WHERE user_id = %s", (user_id,))
-    data = cur.fetchone()
-    conn.close()
-    if data:
-        return Company(id=data[0], name=data[1], company_type=data[2], balance=data[3])
+    if not DATABASE_URL: return None
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("SELECT id, name, company_type, balance FROM companies WHERE user_id = %s", (user_id,))
+        data = cur.fetchone()
+        conn.close()
+        if data:
+            return Company(id=data[0], name=data[1], company_type=data[2], balance=data[3])
+    except:
+        return None
     return None
-
-# --- ROTAS ---
 
 @app.route('/')
 def index():
     if current_user.is_authenticated:
-        # Busca a empresa do usuario (se tiver)
         my_company = get_user_company(current_user.id)
         return render_template('dashboard.html', user=current_user, company=my_company)
     return render_template('login_gate.html')
+
+@app.route('/invoice')
+@login_required
+def invoice():
+    company = get_user_company(current_user.id)
+    if not company:
+        flash("Registre sua empresa primeiro!")
+        return redirect(url_for('index'))
+    return render_template('invoice.html', company=company)
+
+@app.route('/billing')
+@login_required
+def billing():
+    company = get_user_company(current_user.id)
+    if not company:
+        flash("Registre sua empresa primeiro!")
+        return redirect(url_for('index'))
+    return render_template('billing.html', company=company)
 
 @app.route('/register_company', methods=['POST'])
 @login_required
@@ -70,24 +88,18 @@ def register_company():
     name = request.form['company_name']
     tax_id = request.form['tax_id']
     c_type = request.form['company_type']
-
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
-    
-    # Verifica se usuario ja tem empresa
     cur.execute("SELECT id FROM companies WHERE user_id = %s", (current_user.id,))
     if cur.fetchone():
         flash('Você já possui uma empresa registrada!')
     else:
-        cur.execute("INSERT INTO companies (user_id, name, tax_id, company_type) VALUES (%s, %s, %s, %s)",
-                    (current_user.id, name, tax_id, c_type))
+        cur.execute("INSERT INTO companies (user_id, name, tax_id, company_type) VALUES (%s, %s, %s, %s)", (current_user.id, name, tax_id, c_type))
         conn.commit()
         flash('Empresa registrada com sucesso!')
-    
     conn.close()
     return redirect(url_for('index'))
 
-# --- LOGIN/LOGOUT (Mantidos iguais) ---
 @app.route('/register', methods=['POST'])
 def register():
     nickname = request.form['nickname']
@@ -138,7 +150,7 @@ def admin_panel():
     if not current_user.is_admin:
         flash("Acesso Negado!")
         return redirect(url_for('index'))
-    return "<h1>Área Master (Em breve: Gráficos Globais)</h1><a href='/'>Voltar</a>"
+    return "<h1>Área Master</h1><p>Controle Global</p><a href='/'>Voltar</a>"
 
 if __name__ == '__main__':
     app.run(port=3000, debug=True)

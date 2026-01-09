@@ -1,0 +1,40 @@
+cat <<EOF > templates/invoice.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Nova Nota Fiscal</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 40px; }
+        .card { max-width: 600px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h2 { color: #334155; }
+        label { display: block; margin-top: 15px; font-weight: bold; color: #475569; }
+        input, textarea { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+        .btn-emit { background: #16a34a; color: white; border: none; padding: 15px; width: 100%; font-size: 16px; border-radius: 6px; margin-top: 20px; cursor: pointer; }
+        .btn-back { display: block; text-align: center; margin-top: 15px; text-decoration: none; color: #64748b; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>📄 Emitir Nota Fiscal</h2>
+        <p>Prestador: <strong>{{ company.name }}</strong></p>
+        <hr>
+        <form>
+            <label>Cliente (Nome ou Razão Social)</label>
+            <input type="text" placeholder="Nome do Cliente">
+            
+            <label>CNPJ / CPF do Cliente</label>
+            <input type="text" placeholder="000.000.000-00">
+            
+            <label>Valor do Serviço (R$)</label>
+            <input type="number" step="0.01" placeholder="0.00">
+            
+            <label>Descrição do Serviço</label>
+            <textarea rows="3" placeholder="Consultoria em TI..."></textarea>
+            
+            <button type="button" class="btn-emit" onclick="alert('Nota Fiscal emitida com Sucesso! (Simulação)')">EMITIR NOTA</button>
+        </form>
+        <a href="/" class="btn-back">Voltar ao Painel</a>
+    </div>
+</body>
+</html>
+EOF
