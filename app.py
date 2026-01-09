@@ -1,130 +1,144 @@
 import os
 import stripe
 import psycopg2
-from flask import Flask, render_template, jsonify, request, redirect
-from datetime import datetime
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
+app.secret_key = 'segredo_super_secreto' 
 
-# --- CONFIGURAÇÕES ---
-stripe.api_key = os.getenv("STRIPE_API_KEY")
-DB_URL = os.getenv("DATABASE_URL")
-DOMAIN = os.getenv("RENDER_EXTERNAL_URL", "https://moneylayer-2-0.onrender.com")
+stripe.api_key = os.environ.get("STRIPE_API_KEY")
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# --- BANCO DE DADOS ---
-def get_db_connection():
-    if not DB_URL:
-        return None
-    return psycopg2.connect(DB_URL)
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'index'
 
-def init_db():
+# --- MODELOS ---
+class User(UserMixin):
+    def __init__(self, id, nickname, is_admin):
+        self.id = id
+        self.nickname = nickname
+        self.is_admin = is_admin 
+
+class Company:
+    def __init__(self, id, name, company_type, balance):
+        self.id = id
+        self.name = name
+        self.company_type = company_type
+        self.balance = balance
+
+@login_manager.user_loader
+def load_user(user_id):
+    if not DATABASE_URL: return None
     try:
-        conn = get_db_connection()
-        if conn:
-            cur = conn.cursor()
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS transactions (
-                    id SERIAL PRIMARY KEY,
-                    amount REAL NOT NULL,
-                    type TEXT NOT NULL,
-                    description TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            conn.commit()
-            cur.close()
-            conn.close()
-            print("✅ Banco de dados inicializado!")
-    except Exception as e:
-        print(f"⚠️ Erro ao iniciar banco: {e}")
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("SELECT id, nickname, is_admin FROM users WHERE id = %s", (user_id,))
+        data = cur.fetchone()
+        conn.close()
+        if data:
+            return User(id=data[0], nickname=data[1], is_admin=data[2])
+    except:
+        return None
+    return None
 
-with app.app_context():
-    init_db()
+def get_user_company(user_id):
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT id, name, company_type, balance FROM companies WHERE user_id = %s", (user_id,))
+    data = cur.fetchone()
+    conn.close()
+    if data:
+        return Company(id=data[0], name=data[1], company_type=data[2], balance=data[3])
+    return None
 
 # --- ROTAS ---
-@app.route("/")
-def home():
-    saldo = 0.0
-    extrato = []
-    try:
-        conn = get_db_connection()
-        if conn:
-            cur = conn.cursor()
-            cur.execute("SELECT created_at, type, amount, description FROM transactions ORDER BY created_at DESC LIMIT 10")
-            extrato = cur.fetchall()
-            cur.execute("SELECT SUM(amount) FROM transactions WHERE type='SOCIAL'")
-            row = cur.fetchone()
-            if row and row[0]:
-                saldo = row[0]
-            cur.close()
-            conn.close()
-    except Exception as e:
-        print(f"Erro banco: {e}")
 
-    return render_template("index.html", saldo_formatado=f"R$ {saldo:.2f}", extrato=extrato)
+@app.route('/')
+def index():
+    if current_user.is_authenticated:
+        # Busca a empresa do usuario (se tiver)
+        my_company = get_user_company(current_user.id)
+        return render_template('dashboard.html', user=current_user, company=my_company)
+    return render_template('login_gate.html')
 
-@app.route("/api/status")
-def status():
-    return jsonify({
-        "status": "active",
-        "service": "Money Layer",
-        "social_mission": "Financial access for all",
-        "version": "MVP 1.0"
-    })
+@app.route('/register_company', methods=['POST'])
+@login_required
+def register_company():
+    name = request.form['company_name']
+    tax_id = request.form['tax_id']
+    c_type = request.form['company_type']
 
-@app.route("/create-checkout-session", methods=["POST"])
-def create_checkout_session():
-    try:
-        import stripe
-        checkout_session = stripe.checkout.Session.create(
-            line_items=[{
-                "price_data": {
-                    "currency": "brl",
-                    "product_data": {"name": "Doação MoneyLayer"},
-                    "unit_amount": 1000,
-                },
-                "quantity": 1,
-            }],
-            mode="payment",
-            success_url=DOMAIN,
-            cancel_url=DOMAIN,
-        )
-        return redirect(checkout_session.url, code=303)
-    except Exception as e:
-        return str(e)
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    
+    # Verifica se usuario ja tem empresa
+    cur.execute("SELECT id FROM companies WHERE user_id = %s", (current_user.id,))
+    if cur.fetchone():
+        flash('Você já possui uma empresa registrada!')
+    else:
+        cur.execute("INSERT INTO companies (user_id, name, tax_id, company_type) VALUES (%s, %s, %s, %s)",
+                    (current_user.id, name, tax_id, c_type))
+        conn.commit()
+        flash('Empresa registrada com sucesso!')
+    
+    conn.close()
+    return redirect(url_for('index'))
 
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    import stripe
-    payload = request.get_data(as_text=True)
-    sig_header = request.headers.get("Stripe-Signature")
-    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+# --- LOGIN/LOGOUT (Mantidos iguais) ---
+@app.route('/register', methods=['POST'])
+def register():
+    nickname = request.form['nickname']
+    password = request.form['password']
+    confirm = request.form['confirm_password']
+    if password != confirm:
+        flash('As senhas não conferem!')
+        return redirect(url_for('index'))
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM users WHERE nickname = %s", (nickname,))
+    if cur.fetchone():
+        flash('Nickname já existe!')
+        conn.close()
+        return redirect(url_for('index'))
+    hashed_password = generate_password_hash(password)
+    cur.execute("INSERT INTO users (nickname, password_hash, is_admin) VALUES (%s, %s, FALSE)", (nickname, hashed_password))
+    conn.commit()
+    conn.close()
+    flash('Conta criada! Faça login.')
+    return redirect(url_for('index'))
 
-    try:
-        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
-    except ValueError:
-        return "Invalid payload", 400
-    except stripe.error.SignatureVerificationError:
-        return "Invalid signature", 400
+@app.route('/login', methods=['POST'])
+def login():
+    nickname = request.form['nickname']
+    password = request.form['password']
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT id, nickname, password_hash, is_admin FROM users WHERE nickname = %s", (nickname,))
+    data = cur.fetchone()
+    conn.close()
+    if data and check_password_hash(data[2], password):
+        user = User(id=data[0], nickname=data[1], is_admin=data[3])
+        login_user(user)
+        return redirect(url_for('index'))
+    flash('Login falhou.')
+    return redirect(url_for('index'))
 
-    if event["type"] == "checkout.session.completed":
-        session = event["data"]["object"]
-        total = session.get("amount_total", 0) / 100.0
-        social = total * 0.05
-        
-        try:
-            conn = get_db_connection()
-            if conn:
-                cur = conn.cursor()
-                cur.execute("INSERT INTO transactions (amount, type, description) VALUES (%s, %s, %s)", (total, "ENTRADA", "Venda Stripe"))
-                cur.execute("INSERT INTO transactions (amount, type, description) VALUES (%s, %s, %s)", (social, "SOCIAL", "Repasse 5%"))
-                conn.commit()
-                cur.close()
-                conn.close()
-        except Exception as e:
-            print(f"Erro DB: {e}")
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('index'))
 
-    return "Success", 200
+@app.route('/admin')
+@login_required
+def admin_panel():
+    if not current_user.is_admin:
+        flash("Acesso Negado!")
+        return redirect(url_for('index'))
+    return "<h1>Área Master (Em breve: Gráficos Globais)</h1><a href='/'>Voltar</a>"
 
-if __name__ == "__main__":
-    app.run(port=3000)
+if __name__ == '__main__':
+    app.run(port=3000, debug=True)

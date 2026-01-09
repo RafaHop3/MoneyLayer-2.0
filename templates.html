@@ -1,0 +1,55 @@
+mkdir -p templates
+
+cat <<EOF > templates/login_gate.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MoneyLayer - Acesso</title>
+    <style>
+        body { background: #0f172a; font-family: 'Arial', sans-serif; display: flex; justify_content: center; align_items: center; height: 100vh; margin: 0; color: white; }
+        .container { text-align: center; width: 350px; }
+        .logo { font-size: 24px; font-weight: bold; margin-bottom: 20px; color: #38bdf8; }
+        .card { background: #1e293b; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); display: none; animation: fadeIn 0.5s; }
+        .card.active { display: block; }
+        input { width: 100%; padding: 10px; margin: 10px 0; background: #334155; border: none; border-radius: 5px; color: white; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #38bdf8; border: none; border-radius: 5px; color: #0f172a; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        button:hover { background: #7dd3fc; }
+        .toggle-links { margin-top: 15px; font-size: 14px; color: #94a3b8; }
+        .toggle-links a { color: #38bdf8; text-decoration: none; cursor: pointer; }
+        .flash-msg { background: #ef4444; color: white; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="logo">MoneyLayer 2.0 🔒</div>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %} <div class="flash-msg">{{ messages[0] }}</div> {% endif %}
+    {% endwith %}
+    <div id="login-card" class="card active">
+        <h3>Entrar no Sistema</h3>
+        <form action="/login" method="POST">
+            <input type="text" name="nickname" placeholder="Nickname" required>
+            <input type="password" name="password" placeholder="Senha" required>
+            <button type="submit">ACESSAR</button>
+        </form>
+        <div class="toggle-links">Não tem conta? <a onclick="showRegister()">Cadastre-se</a></div>
+    </div>
+    <div id="register-card" class="card">
+        <h3>Nova Conta</h3>
+        <form action="/register" method="POST">
+            <input type="text" name="nickname" placeholder="Nickname Desejado" required>
+            <input type="password" name="password" placeholder="Senha" required>
+            <input type="password" name="confirm_password" placeholder="Confirme a Senha" required>
+            <button type="submit">CRIAR CONTA</button>
+        </form>
+        <div class="toggle-links">Já tem conta? <a onclick="showLogin()">Fazer Login</a></div>
+    </div>
+</div>
+<script>
+    function showRegister() { document.getElementById('login-card').classList.remove('active'); document.getElementById('register-card').classList.add('active'); }
+    function showLogin() { document.getElementById('register-card').classList.remove('active'); document.getElementById('login-card').classList.add('active'); }
+</script>
+</body>
+</html>
+EOF

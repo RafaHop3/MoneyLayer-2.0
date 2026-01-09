@@ -2,3 +2,4 @@ flask
 gunicorn
 stripe
 psycopg2-binary
+flask-login
