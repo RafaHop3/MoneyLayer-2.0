@@ -1,7 +1,4 @@
-cat <<EOF > update_brain.py
 import os
-
-code = r'''import os
 import stripe
 import psycopg2
 from flask import Flask, render_template, jsonify, request, redirect
@@ -12,6 +9,7 @@ app = Flask(__name__)
 # --- CONFIGURAÇÕES ---
 stripe.api_key = os.getenv("STRIPE_API_KEY")
 DB_URL = os.getenv("DATABASE_URL")
+# Garante que usa a URL certa (com ou sem 2-0)
 DOMAIN = os.getenv("RENDER_EXTERNAL_URL", "https://moneylayer-2-0.onrender.com")
 
 # --- BANCO DE DADOS ---
@@ -133,10 +131,3 @@ def webhook():
 
 if __name__ == "__main__":
     app.run(port=3000)
-'''
-
-with open("app.py", "w", encoding="utf-8") as f:
-    f.write(code)
-
-print("✅ SUCESSO: Cérebro do MoneyLayer atualizado!")
-EOF
