@@ -8,61 +8,46 @@
     <style>
         .badge-social { background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:4px; font-weight:bold; font-size: 0.8em; }
         .badge-entrada { background:#e3f2fd; color:#1565c0; padding:2px 8px; border-radius:4px; font-size: 0.8em; }
-        table { font-size: 0.9em; }
+        .cta-box { background: #f0f0f0; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px; }
     </style>
 </head>
 <body>
     <main class="container">
-        <nav>
-            <ul><li><strong>MoneyLayer 2.0</strong></li></ul>
-        </nav>
-        <article>
-            <header>Fundo Social Acumulado</header>
-            <h1 style="margin-bottom:0">{{ saldo_formatado }}</h1>
-            <small>Ger
-git add .
-git commit -m "Deploy Painel MoneyLayer com Auditoria"
-git push
-# 1. Garante a pasta
-mkdir -p templates
-
-# 2. Corrige o Scheduler (Gerente)
-cat <<EOF > scheduler_tasks.py
-import os
-import psycopg2
-from datetime import datetime
-import random
-
-DB_URL = os.environ.get('DATABASE_URL')
-
-def get_db_connection():
-    return psycopg2.connect(DB_URL, sslmode='require')
-
-def executar_distribuicao_social(app):
-    with app.app_context():
-        try:
-            conn = get_db_connection()
-            cur = conn.cursor()
-            
-            # Simula Faturamento
-            faturamento = random.uniform(1000.00, 5000.00)
-            cur.execute("INSERT INTO financeiro (tipo, valor, descricao, destino) VALUES ('ENTRADA', %s, 'Faturamento Auto', 'Caixa Empresa')", (faturamento,))
-            
-            # Aplica Regra Social
-            cur.execute("SELECT porcentagem FROM regras_sociais WHERE ativo = TRUE LIMIT 1")
-            regra = cur.fetchone()
-            porcentagem = regra[0] if regra else 5.0
-            
-            # Gera Social
-            valor_social = faturamento * (float(porcentagem) / 100)
-            cur.execute("INSERT INTO financeiro (tipo, valor, descricao, destino) VALUES ('SOCIAL', %s, 'Repasse Automatico', 'Fundo Social')", (valor_social,))
-            
-            conn.commit()
-            conn.close()
-            print(f"[{datetime.now()}] SUCESSO: R$ {valor_social:.2f} gerado.")
-            
-        except Exception as e:
-            print(f"ERRO SCHEDULER: {e}")
-
-def processar_folha_pagamento(app):
-    pass
+        <nav><ul><li><strong>MoneyLayer 2.0</strong></li></ul></nav>
+        
+        <div class="grid">
+            <article>
+                <header>Fundo Social</header>
+                <h1 style="margin-bottom:0">{{ saldo_formatado }}</h1>
+            </article>
+            <article class="cta-box">
+                <header>Faça a Economia Girar</header>
+                <p>Simule uma venda real de R$ 10,00</p>
+                <form action="/create-checkout-session" method="POST">
+                    <button type="submit" role="button" class="contrast">💳 Pagar R$ 10,00</button>
+                </form>
+            </article>
+        </div>
+        
+        <h3>📊 Auditoria (Últimas 10 Transações)</h3>
+        <figure>
+            <table role="grid">
+                <thead><tr><th>Data</th><th>Tipo</th><th>Valor</th><th>Detalhes</th></tr></thead>
+                <tbody>
+                    {% for item in extrato %}
+                    <tr>
+                        <td>{{ item[0].strftime('%d/%m %H:%M') }}</td>
+                        <td>
+                            {% if item[1] == 'ENTRADA' %}<span class="badge-entrada">RECEITA</span>
+                            {% else %}<span class="badge-social">SOCIAL ❤️</span>{% endif %}
+                        </td>
+                        <td>R$ {{ "%.2f"|format(item[2]) }}</td>
+                        <td>{{ item[3] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </figure>
+    </main>
+</body>
+</html>
