@@ -9,7 +9,6 @@ app = Flask(__name__)
 # --- CONFIGURAÇÕES ---
 stripe.api_key = os.getenv("STRIPE_API_KEY")
 DB_URL = os.getenv("DATABASE_URL")
-# Garante que usa a URL certa (com ou sem 2-0)
 DOMAIN = os.getenv("RENDER_EXTERNAL_URL", "https://moneylayer-2-0.onrender.com")
 
 # --- BANCO DE DADOS ---
@@ -51,11 +50,8 @@ def home():
         conn = get_db_connection()
         if conn:
             cur = conn.cursor()
-            # Pega as últimas 10 transações
             cur.execute("SELECT created_at, type, amount, description FROM transactions ORDER BY created_at DESC LIMIT 10")
             extrato = cur.fetchall()
-            
-            # Calcula saldo social
             cur.execute("SELECT SUM(amount) FROM transactions WHERE type='SOCIAL'")
             row = cur.fetchone()
             if row and row[0]:
@@ -111,19 +107,17 @@ def webhook():
 
     if event["type"] == "checkout.session.completed":
         session = event["data"]["object"]
-        valor_total = session.get("amount_total", 0) / 100.0
-        valor_social = valor_total * 0.05
+        total = session.get("amount_total", 0) / 100.0
+        social = total * 0.05
         
         try:
             conn = get_db_connection()
             if conn:
                 cur = conn.cursor()
-                cur.execute("INSERT INTO transactions (amount, type, description) VALUES (%s, %s, %s)", (valor_total, "ENTRADA", "Venda via Stripe"))
-                cur.execute("INSERT INTO transactions (amount, type, description) VALUES (%s, %s, %s)", (valor_social, "SOCIAL", "Repasse 5%"))
+                cur.execute("INSERT INTO transactions (amount, type, description) VALUES (%s, %s, %s)", (total, "ENTRADA", "Venda Stripe"))
+                cur.execute("INSERT INTO transactions (amount, type, description) VALUES (%s, %s, %s)", (social, "SOCIAL", "Repasse 5%"))
                 conn.commit()
-                cur.close()
                 conn.close()
-                print(f"💰 Pagamento: {valor_total} | Social: {valor_social}")
         except Exception as e:
             print(f"Erro DB: {e}")
 
