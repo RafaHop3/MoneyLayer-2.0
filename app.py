@@ -51,7 +51,7 @@ def home():
         conn = get_db_connection()
         if conn:
             cur = conn.cursor()
-            # Pega as ultimas 10 transacoes
+            # Pega as últimas 10 transações
             cur.execute("SELECT created_at, type, amount, description FROM transactions ORDER BY created_at DESC LIMIT 10")
             extrato = cur.fetchall()
             
