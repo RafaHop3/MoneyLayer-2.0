@@ -1,121 +1,156 @@
 import os
-import json
 import stripe
 import psycopg2
-from flask import Flask, render_template, request, jsonify
-from flask_apscheduler import APScheduler
-from scheduler_tasks import executar_distribuicao_social
-
-# --- CONFIGURAÇÃO ---
-class Config:
-    SCHEDULER_API_ENABLED = True
+from flask import Flask, render_template, jsonify, request, redirect
+from datetime import datetime
 
 app = Flask(__name__)
-app.config.from_object(Config())
 
-# Inicializa o Robô (Scheduler)
-scheduler = APScheduler()
-scheduler.init_app(app)
-scheduler.start()
+# --- CONFIGURAÇÕES ---
+# Pega as chaves do ambiente (que definimos no Render)
+stripe.api_key = os.getenv('STRIPE_API_KEY')
+DB_URL = os.getenv('DATABASE_URL')
+DOMAIN = os.getenv('RENDER_EXTERNAL_URL', 'http://localhost:10000')
 
-# Configuração do Banco e Stripe
-DB_URL = os.environ.get('DATABASE_URL')
-# A chave virá das variáveis de ambiente do Render depois
-stripe.api_key = os.environ.get('STRIPE_API_KEY') 
-ENDPOINT_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET')
-
+# --- BANCO DE DADOS ---
 def get_db_connection():
-    return psycopg2.connect(DB_URL, sslmode='require')
+    if not DB_URL:
+        return None
+    return psycopg2.connect(DB_URL)
 
-# --- FUNÇÕES DE BANCO DE DADOS ---
-def registrar_pagamento_real(valor_bruto, origem):
+def init_db():
+    """Cria a tabela se ela nao existir"""
     try:
         conn = get_db_connection()
-        cur = conn.cursor()
-        
-        # 1. Registra a Entrada Real
-        cur.execute("""
-            INSERT INTO financeiro (tipo, valor, descricao, destino) 
-            VALUES ('ENTRADA', %s, %s, 'Caixa Empresa')
-        """, (valor_bruto, f"Venda via Stripe ({origem})"))
-        
-        # 2. Calcula o Social (5%)
-        # Futuramente isso virá da tabela de regras, por enquanto fixo para performance
-        valor_social = float(valor_bruto) * 0.05
-        
-        # 3. Separa o Dinheiro Social
-        cur.execute("""
-            INSERT INTO financeiro (tipo, valor, descricao, destino) 
-            VALUES ('SOCIAL', %s, 'Aplicação Automática 5%%', 'Fundo Social')
-        """, (valor_social,))
-        
-        conn.commit()
-        cur.close()
-        conn.close()
-        print(f"💰 SUCESSO: Pagamento de R$ {valor_bruto} processado. R$ {valor_social} foi para social.")
-        return True
+        if conn:
+            cur = conn.cursor()
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS transactions (
+                    id SERIAL PRIMARY KEY,
+                    amount REAL NOT NULL,
+                    type TEXT NOT NULL,
+                    description TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            conn.commit()
+            cur.close()
+            conn.close()
+            print("✅ Banco de dados inicializado!")
     except Exception as e:
-        print(f"❌ ERRO AO GRAVAR NO BANCO: {e}")
-        return False
+        print(f"⚠️ Erro ao iniciar banco: {e}")
 
-def get_dados_auditoria():
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT SUM(valor) FROM financeiro WHERE tipo = 'SOCIAL'")
-        saldo = cur.fetchone()[0] or 0.0
-        cur.execute("SELECT data_transacao, tipo, valor, descricao, destino FROM financeiro ORDER BY data_transacao DESC LIMIT 10")
-        extrato = cur.fetchall()
-        conn.close()
-        return saldo, extrato
-    except:
-        return 0.0, []
+# Inicializa o banco ao ligar o app
+with app.app_context():
+    init_db()
 
 # --- ROTAS ---
 
 @app.route('/')
-def index():
-    saldo, extrato = get_dados_auditoria()
-    saldo_fmt = f"R$ {saldo:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    return render_template('index.html', saldo_formatado=saldo_fmt, extrato=extrato, status_scheduler="Aguardando Vendas 💳")
+def home():
+    """Rota Principal: Mostra o Painel Visual"""
+    saldo = 0.0
+    extrato = []
+    
+    try:
+        conn = get_db_connection()
+        if conn:
+            cur = conn.cursor()
+            
+            # 1. Busca as últimas 10 transações
+            cur.execute("SELECT created_at, type, amount, description FROM transactions ORDER BY created_at DESC LIMIT 10")
+            extrato = cur.fetchall()
+            
+            # 2. Calcula o Saldo Social (Soma de tudo que é 'SOCIAL')
+            cur.execute("SELECT SUM(amount) FROM transactions WHERE type='SOCIAL'")
+            resultado = cur.fetchone()
+            if resultado and resultado[0]:
+                saldo = resultado[0]
+                
+            cur.close()
+            conn.close()
+    except Exception as e:
+        print(f"Erro ao ler banco: {e}")
 
-# AQUI É ONDE O STRIPE BATE NA PORTA
+    # Renderiza o HTML passando os dados
+    return render_template('index.html', 
+                         saldo_formatado=f"R$ {saldo:.2f}", 
+                         extrato=extrato)
+
+@app.route('/api/status')
+def status():
+    """A rota JSON que você gostou (agora fica aqui)"""
+    return jsonify({
+        "status": "active",
+        "service": "Money Layer",
+        "social_mission": "Financial access for all",
+        "version": "MVP 1.0"
+    })
+
+@app.route('/create-checkout-session', methods=['POST'])
+def create_checkout_session():
+    """Cria o pagamento no Stripe"""
+    try:
+        checkout_session = stripe.checkout.Session.create(
+            line_items=[{
+                'price_data': {
+                    'currency': 'brl',
+                    'product_data': {'name': 'Doação MoneyLayer'},
+                    'unit_amount': 1000, # R$ 10.00 (em centavos)
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url=DOMAIN + '/?sucesso=true',
+            cancel_url=DOMAIN + '/?cancelado=true',
+        )
+        return redirect(checkout_session.url, code=303)
+    except Exception as e:
+        return str(e)
+
+# --- WEBHOOK (Onde a mágica dos 5% acontece) ---
 @app.route('/webhook', methods=['POST'])
-def stripe_webhook():
+def webhook():
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get('Stripe-Signature')
-    event = None
+    webhook_secret = os.getenv('STRIPE_WEBHOOK_SECRET')
 
     try:
-        # Verifica se foi mesmo o Stripe que mandou (Segurança)
-        if ENDPOINT_SECRET:
-            event = stripe.Webhook.construct_event(payload, sig_header, ENDPOINT_SECRET)
-        else:
-            # Modo Dev sem validação de assinatura (apenas para teste rápido)
-            data = json.loads(payload)
-            event = data
-
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
     except ValueError as e:
         return 'Invalid payload', 400
     except stripe.error.SignatureVerificationError as e:
         return 'Invalid signature', 400
 
-    # Lógica de Recebimento
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
-        # Stripe envia em centavos (ex: 1000 = R$ 10,00), precisamos dividir
-        amount_total = session.get('amount_total', 0) / 100 
-        customer_email = session.get('customer_details', {}).get('email', 'anonimo')
+        valor_total = session.get('amount_total', 0) / 100.0 # Converte centavos para reais
         
-        registrar_pagamento_real(amount_total, customer_email)
+        # AQUI É A REGRA DE OURO: 5% Social
+        valor_social = valor_total * 0.05
+        
+        try:
+            conn = get_db_connection()
+            if conn:
+                cur = conn.cursor()
+                
+                # Registra a Venda
+                cur.execute("INSERT INTO transactions (amount, type, description) VALUES (%s, %s, %s)",
+                            (valor_total, 'ENTRADA', 'Venda via Stripe'))
+                
+                # Registra o Repasse Social Automático
+                cur.execute("INSERT INTO transactions (amount, type, description) VALUES (%s, %s, %s)",
+                            (valor_social, 'SOCIAL', 'Repasse Automático 5%'))
+                
+                conn.commit()
+                cur.close()
+                conn.close()
+                print(f"💰 Pagamento Processado: R$ {valor_total} | Social: R$ {valor_social}")
+        except Exception as e:
+            print(f"Erro ao gravar no banco: {e}")
 
-    return jsonify(success=True)
-
-# Mantemos o scheduler rodando para simular custos operacionais ou outras tarefas
-@scheduler.task('interval', id='social_job', seconds=60)
-def job_social():
-    executar_distribuicao_social(app)
+    return 'Success', 200
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    # Roda localmente
+    app.run(port=3000)
