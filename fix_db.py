@@ -1,17 +1,8 @@
+from sqlalchemy import create_engine, text
 import os
-import psycopg2
 
-try:
-    print("🔌 Conectando ao Neon...")
-    conn = psycopg2.connect(os.environ['DATABASE_URL'])
-    cur = conn.cursor()
-    
-    print("🔨 Adicionando coluna 'is_admin'...")
-    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;")
-    
+engine = create_engine(os.getenv("DATABASE_URL"))
+with engine.connect() as conn:
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cpf VARCHAR(14) UNIQUE;"))
     conn.commit()
-    cur.close()
-    conn.close()
-    print("✅ SUCESSO! A coluna 'is_admin' foi criada.")
-except Exception as e:
-    print(f"❌ Erro: {e}")
+    print("✅ Coluna CPF verificada/criada com sucesso!")
