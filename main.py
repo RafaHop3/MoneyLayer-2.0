@@ -1,11 +1,11 @@
-import os, random, datetime
-from fastapi import FastAPI, Form, Request, HTTPException
+import os, datetime, yfinance as yf
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-app = FastAPI(title="MoneyLayer 2.0 - Cyber Sentinel")
+app = FastAPI()
 
 # Banco de Dados
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -16,90 +16,94 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Modelos: Usuários e Logs de Intrusão
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
     cpf = Column(String, unique=True)
     is_god = Column(Boolean, default=False)
-    is_banned = Column(Boolean, default=False)
-
-class SecurityLog(Base):
-    __tablename__ = "security_logs"
-    id = Column(Integer, primary_key=True)
-    ip_address = Column(String)
-    attempted_cpf = Column(String)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
-    status = Column(String) # "Sucesso", "Falha", "Banido"
 
 Base.metadata.create_all(bind=engine)
 
-YOUR_GOD_CPF = "86001396000"
-
 @app.get("/", response_class=HTMLResponse)
-async def home():
+async def login_page():
     return """
-    <body style="background:#000; color:#2ecc71; font-family:monospace; text-align:center; padding:50px;">
-        <h1 style="color:white;">MONEYLAYER 2.0 - SISTEMA PROTEGIDO</h1>
-        <p>[SEGURANÇA DE CAMADA ATIVA]</p>
-        <form action="/login" method="post" style="border:1px solid #2ecc71; display:inline-block; padding:20px;">
-            <input type="text" name="cpf" placeholder="CPF DE ACESSO" required style="background:#000; color:#2ecc71; border:1px solid #2ecc71; padding:10px;"><br><br>
-            <button type="submit" style="background:#2ecc71; color:#000; border:0; padding:10px 20px; font-weight:bold; cursor:pointer;">VALIDAR INTERESSE SOCIAL</button>
-        </form>
+    <html>
+    <head>
+        <style>
+            body { background: #0a0a0a; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+            .login-card { background: #1a1a1a; padding: 40px; border-radius: 15px; border: 1px solid #333; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+            input { background: #000; border: 1px solid #444; color: #ffd700; padding: 12px; border-radius: 5px; width: 250px; margin-bottom: 20px; outline: none; }
+            button { background: #ffd700; color: #000; border: none; padding: 12px 30px; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+            button:hover { background: #fff; transform: translateY(-2px); }
+        </style>
+    </head>
+    <body>
+        <div class="login-card">
+            <h1>MONEYLAYER <span style="color:#ffd700">2.0</span></h1>
+            <form action="/dashboard" method="post">
+                <input type="text" name="cpf" placeholder="IDENTIFICAÇÃO GOD" required><br>
+                <button type="submit">ENTRAR NO SISTEMA</button>
+            </form>
+        </div>
     </body>
+    </html>
     """
 
-@app.post("/login", response_class=HTMLResponse)
-async def login(request: Request, cpf: str = Form(...)):
-    db = SessionLocal()
-    client_ip = request.client.host
-    user = db.query(User).filter(User.cpf == cpf).first()
+@app.post("/dashboard", response_class=HTMLResponse)
+async def dashboard(cpf: str = Form(...)):
+    if cpf != "86001396000":
+        return "Acesso Negado"
     
-    status = "Falha"
-    if user:
-        if user.is_banned: status = "Banido"
-        else: status = "Sucesso"
-    
-    # Registrar log de segurança [cite: 2026-01-13]
-    new_log = SecurityLog(ip_address=client_ip, attempted_cpf=cpf, status=status)
-    db.add(new_log)
-    
-    if status == "Banido":
-        db.commit()
-        db.close()
-        return "<body style='background:red; color:white; text-align:center; padding:100px;'><h1>IP BLOQUEADO: VIOLAÇÃO DETECTADA</h1></body>"
+    # Coleta de Dados de Empresas Diversificadas
+    tickers = ["AAPL", "PETR4.SA", "VALE3.SA", "TSLA", "AMZN"]
+    market_data = ""
+    for t in tickers:
+        stock = yf.Ticker(t)
+        price = stock.fast_info['last_price']
+        market_data += f"<div class='card'><h4>{t}</h4><p>Preço Atual: <span style='color:#2ecc71'>$ {price:.2f}</span></p></div>"
 
-    if not user:
-        is_god = (cpf == YOUR_GOD_CPF)
-        user = User(cpf=cpf, is_god=is_god)
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-    
-    if user.is_god:
-        all_users = db.query(User).all()
-        all_logs = db.query(SecurityLog).order_by(SecurityLog.timestamp.desc()).limit(10).all()
-        
-        user_list = "".join([f"<li>ID: {u.id} - {u.cpf} {'[BAN]' if u.is_banned else ''}</li>" for u in all_users if not u.is_god])
-        log_list = "".join([f"<li>[{l.timestamp.strftime('%H:%M:%S')}] IP: {l.ip_address} - CPF: {l.attempted_cpf} ({l.status})</li>" for l in all_logs])
-        
-        db.close()
-        return f"""
-            <body style="background:#000; color:#ffd700; font-family:monospace; padding:30px;">
-                <h1 style="text-align:center;">COMANDO SUPREMO - MONEYLAYER</h1>
-                <div style="display:flex; justify-content:space-around;">
-                    <div style="border:1px solid #ffd700; padding:15px; width:45%;">
-                        <h3>AUDITORIA DE USUÁRIOS</h3>
-                        <ul>{user_list}</ul>
-                    </div>
-                    <div style="border:1px solid red; padding:15px; width:45%; color:#ff4444;">
-                        <h3>LOGS DE INTRUSÃO (SENTINEL)</h3>
-                        <ul>{log_list}</ul>
-                    </div>
-                </div>
-                <p style="text-align:center;"><br><a href="/" style="color:white;">LOGOUT</a></p>
-            </body>
-        """
-    db.commit()
-    db.close()
-    return f"<body style='background:#000; color:white; text-align:center; padding:50px;'><h1>SISTEMA SOCIAL ATIVO</h1><p>Usuário: {cpf}</p><a href='/'>Voltar</a></body>"
+    return f"""
+    <html>
+    <head>
+        <style>
+            body {{ margin: 0; display: flex; background: #050505; color: white; font-family: sans-serif; }}
+            .sidebar {{ width: 250px; background: #111; height: 100vh; border-right: 1px solid #333; padding: 20px; }}
+            .main-content {{ flex: 1; padding: 30px; }}
+            .tabs {{ display: flex; gap: 10px; margin-bottom: 30px; border-bottom: 1px solid #333; padding-bottom: 10px; }}
+            .tab-btn {{ background: none; border: none; color: #888; cursor: pointer; font-size: 16px; padding: 10px; }}
+            .tab-btn.active {{ color: #ffd700; border-bottom: 2px solid #ffd700; }}
+            .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; }}
+            .card {{ background: #1a1a1a; padding: 20px; border-radius: 10px; border: 1px solid #333; }}
+            #intelligence, #security {{ display: none; }}
+            .active-section {{ display: block !important; }}
+        </style>
+    </head>
+    <body>
+        <div class="sidebar">
+            <h2 style="color:#ffd700">GOD PANEL</h2>
+            <p>ID: 1</p>
+            <hr style="border-color:#222">
+            <button class="tab-btn active" onclick="show('intelligence')">Inteligência de Mercado</button><br>
+            <button class="tab-btn" onclick="show('security')">Segurança Sentinel</button>
+        </div>
+        <div class="main-content">
+            <div id="intelligence" class="active-section">
+                <h1>Global Market Analysis</h1>
+                <div class="grid">{market_data}</div>
+            </div>
+            <div id="security">
+                <h1>Sentinela de Acessos</h1>
+                <p>Monitorando logs de intrusão e CPFs...</p>
+                <div class="card" style="border-color: red;">Monitoramento em Tempo Real Ativo</div>
+            </div>
+        </div>
+        <script>
+            function show(id) {{
+                document.getElementById('intelligence').classList.remove('active-section');
+                document.getElementById('security').classList.remove('active-section');
+                document.getElementById(id).classList.add('active-section');
+            }}
+        </script>
+    </body>
+    </html>
+    """
