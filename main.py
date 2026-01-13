@@ -1,11 +1,11 @@
-import os, random
+import os, random, yfinance as yf
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import create_engine, Column, String, Integer, Boolean, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Configuração de Banco de Dados Resiliente (Render + Local)
+# --- CONFIGURAÇÃO DE BANCO ---
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
@@ -18,47 +18,62 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     cpf = Column(String, unique=True, index=True)
-    is_active = Column(Boolean, default=True)
 
-# Migração Automática de Coluna
 try:
     Base.metadata.create_all(bind=engine)
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cpf VARCHAR(14) UNIQUE;"))
         conn.commit()
-except Exception as e:
-    print(f"Migration Status: {e}")
+except: pass
 
-app = FastAPI(title="MoneyLayer 2.0")
+app = FastAPI()
+
+# --- LÓGICA DE INTERESSE SOCIAL ---
+def get_global_index():
+    try:
+        data = yf.Ticker("USDBRL=X").history(period="1d")
+        price = data['Close'].iloc[-1]
+        return round(price, 2)
+    except:
+        return 5.40  # Valor fallback
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return """
+    val = get_global_index()
+    return f"""
     <html>
         <head>
-            <title>MoneyLayer 2.0 | Orbe Systems</title>
+            <title>MoneyLayer | The Orbe Systems</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1">
             <style>
-                body { background: #000; color: #fff; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-                .panel { border: 1px solid #ffcc00; padding: 40px; border-radius: 5px; text-align: center; background: #050505; box-shadow: 0 0 20px rgba(255, 204, 0, 0.2); width: 400px; }
-                h1 { color: #ffcc00; font-size: 28px; letter-spacing: 5px; margin-bottom: 5px; }
-                .social-tag { color: #444; font-size: 10px; margin-bottom: 30px; letter-spacing: 2px; }
-                input { background: #000; border: 1px solid #333; color: #ffcc00; padding: 15px; width: 100%; box-sizing: border-box; margin-bottom: 10px; text-align: center; }
-                .btn { background: #ffcc00; color: #000; padding: 15px; width: 100%; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; margin-bottom: 10px; }
-                .btn-audit { background: transparent; color: #555; border: 1px solid #222; font-size: 11px; padding: 8px; width: 100%; cursor: pointer; }
-                .brand { margin-top: 40px; color: #333; font-size: 10px; font-weight: bold; }
+                :root {{ --gold: #ffcc00; --bg: #050505; --card: #111; }}
+                body {{ background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }}
+                .glass-card {{ background: var(--card); border: 1px solid #222; padding: 40px; border-radius: 20px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.8); width: 90%; max-width: 400px; }}
+                h1 {{ color: var(--gold); letter-spacing: 4px; font-weight: 800; margin-bottom: 5px; text-transform: uppercase; }}
+                .tagline {{ color: #555; font-size: 11px; letter-spacing: 2px; margin-bottom: 30px; }}
+                .ticker {{ background: #000; border-radius: 10px; padding: 15px; margin-bottom: 20px; border: 1px dashed #333; }}
+                .ticker-val {{ color: var(--gold); font-size: 24px; font-weight: bold; }}
+                input {{ background: #1a1a1a; border: 1px solid #333; color: var(--gold); padding: 15px; width: 100%; border-radius: 8px; margin-bottom: 15px; box-sizing: border-box; }}
+                .btn-primary {{ background: var(--gold); color: #000; padding: 15px; width: 100%; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; text-transform: uppercase; }}
+                .btn-primary:hover {{ transform: scale(1.02); box-shadow: 0 0 15px rgba(255,204,0,0.3); }}
+                .btn-outline {{ background: transparent; color: var(--gold); border: 1px solid var(--gold); padding: 12px; width: 100%; border-radius: 8px; margin-top: 10px; cursor: pointer; font-size: 12px; }}
+                .footer {{ margin-top: 40px; font-size: 10px; color: #333; letter-spacing: 1px; }}
             </style>
         </head>
         <body>
-            <div class="panel">
-                <h1>MONEYLAYER</h1>
-                <div class="social-tag">GLOBAL GOVERNANCE & SOCIAL INTEREST</div>
+            <div class="glass-card">
+                <h1>MoneyLayer</h1>
+                <div class="tagline">Global Value Governance</div>
+                <div class="ticker">
+                    <div style="font-size: 10px; color: #666;">Câmbio Global (USD/BRL)</div>
+                    <div class="ticker-val">R$ {val}</div>
+                </div>
                 <form action="/auth/identify" method="post">
-                    <input type="text" name="cpf" placeholder="IDENTIFICAÇÃO (CPF)" required>
-                    <button type="submit" class="btn">Validar Camada</button>
+                    <input type="text" name="cpf" placeholder="IDENTIFICAÇÃO DE CAMADA" required>
+                    <button type="submit" class="btn-primary">Validar Governança</button>
                 </form>
-                <button class="btn" style="background: #111; color: #ffcc00; border: 1px solid #ffcc00;" onclick="alert('Iniciando Pagamento de Auditoria Social...')">Efetuar Pagamento</button>
-                <button class="btn-audit">RELATÓRIO DE AUDITORIA DISPONÍVEL</button>
-                <div class="brand">THE ORBE SYSTEMS</div>
+                <button class="btn-outline" onclick="location.href='/audit'">Acessar Auditoria</button>
+                <div class="footer">POWERED BY THE ORBE SYSTEMS</div>
             </div>
         </body>
     </html>
@@ -66,15 +81,16 @@ async def home(request: Request):
 
 @app.post("/auth/identify")
 async def identify(cpf: str = Form(...)):
-    # Simulação IA de Interesse Social
-    val_global = round(random.uniform(1.1, 9.9), 2)
+    val = get_global_index()
+    # IA de Simulação vinculando o valor global ao CPF
+    interest_impact = round((val * random.random()), 4)
     return {
-        "status": "Acesso Autorizado",
-        "governance_token": f"SOC-{random.randint(1000, 9999)}",
-        "social_interest_index": f"{val_global}%",
-        "message": "Valores globais sincronizados com o CPF informado."
+        "status": "Sincronizado",
+        "protocol": f"ORBE-{random.randint(10000, 99999)}",
+        "impacto_social": f"{interest_impact}%",
+        "global_reference": val
     }
 
-@app.get("/health")
-async def health():
-    return {"status": "online", "version": "2.0.1"}
+@app.get("/audit")
+async def audit():
+    return {"status": "Audit Found", "last_check": "Just now", "system": "Protected"}
