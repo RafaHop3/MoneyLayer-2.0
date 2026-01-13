@@ -1,9 +1,10 @@
 import os, yfinance as yf, plotly.express as px
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse
-from sqlalchemy import create_engine, Column, String, Integer, Boolean
+from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from datetime import datetime
 
 app = FastAPI()
 
@@ -19,15 +20,41 @@ class User(Base):
     cpf = Column(String, unique=True)
     is_god = Column(Boolean, default=False)
 
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    id = Column(Integer, primary_key=True)
+    cpf_attempt = Column(String)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
 Base.metadata.create_all(bind=engine)
+
+GOD_CPF = "86001396000"
 
 @app.post("/dashboard", response_class=HTMLResponse)
 async def dashboard(cpf: str = Form(...), input_code: str = Form(...)):
-    assets = ["USDBRL=X", "BTC-USD", "PETR4.SA"]
+    db = SessionLocal()
+    clean_cpf = "".join(filter(str.isdigit, cpf))
+    
+    # Registro de Auditoria
+    new_log = AuditLog(cpf_attempt=clean_cpf)
+    db.add(new_log)
+    db.commit()
+
+    # Verificação de Poder SOBERANO
+    is_admin = (clean_cpf == GOD_CPF)
+    
+    # Busca de dados de mercado
+    assets = ["USDBRL=X", "BTC-USD"]
     data = yf.download(assets, period="5d", interval="1h")['Close']
-    fig = px.line(data, title="Fluxo de Mercado Soberano", template="plotly_dark")
-    fig.update_layout(paper_bgcolor="#0a0a0a", plot_bgcolor="#0a0a0a", font_color="#ffd700")
-    chart_html = fig.to_html(full_html=False)
+    chart_html = px.line(data, template="plotly_dark").to_html(full_html=False)
+
+    # Lista de auditoria (Apenas para GOD)
+    audit_list = ""
+    if is_admin:
+        logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(10).all()
+        audit_list = "".join([f"<li>[{l.timestamp.strftime('%H:%M')}] CPF: {l.cpf_attempt}</li>" for l in logs])
+
+    db.close()
 
     return f"""
     <html>
@@ -40,43 +67,30 @@ async def dashboard(cpf: str = Form(...), input_code: str = Form(...)):
             .nav-item {{ padding: 12px; cursor: pointer; color: #888; border-radius: 8px; margin-bottom: 5px; }}
             .active {{ background: #1a1a1a; color: #ffd700; }}
             .card {{ background: #111; border: 1px solid #222; padding: 20px; border-radius: 12px; margin-bottom: 20px; }}
-            .input-box {{ background:#000; border:1px solid #333; color:#ffd700; padding:10px; border-radius:5px; width:100%; margin-top:10px; }}
-            button {{ background:#ffd700; color:#000; border:0; padding:12px; border-radius:5px; font-weight:bold; cursor:pointer; margin-top:10px; width:100%; }}
-            .btn-pdf {{ background: #e74c3c; color: white; margin-top: 20px; }}
+            .admin-only {{ border: 1px solid #ffd700; color: #ffd700; padding: 15px; border-radius: 10px; margin-top: 20px; }}
+            .btn-pdf {{ background: #e74c3c; color: white; border:0; padding:12px; border-radius:5px; cursor:pointer; width:100%; font-weight:bold; }}
             .hidden {{ display: none; }}
         </style>
     </head>
     <body>
         <div class="sidebar">
             <h2 style="color:#ffd700">MONEYLAYER <span style="font-weight:200">2.0</span></h2>
-            <div style="margin-top:30px;">
-                <div class="nav-item active" onclick="tab('market')">Mercado Global</div>
-                <div class="nav-item" onclick="tab('tax')">Gestão Business</div>
-                <div class="nav-item" onclick="tab('worker')">Gestão Individual</div>
-            </div>
-            <button class="btn-pdf" onclick="gerarPDF()">📄 EXPORTAR PDF</button>
+            <div class="nav-item active" onclick="tab('market')">Mercado Global</div>
+            <div class="nav-item" onclick="tab('tax')">Gestão Business</div>
+            {"<div class='nav-item' onclick='tab(\"admin\")'>🔐 AUDITORIA</div>" if is_admin else ""}
+            <button class="btn-pdf" onclick="gerarPDF()">📄 EXPORTAR RELATÓRIO</button>
         </div>
-        <div class="main" id="conteudo-relatorio">
+        <div class="main" id="relatorio">
             <div id="market" class="section">
-                <h1>Relatório de Mercado</h1>
+                <h1>Monitor de Inteligência</h1>
                 <div class="card">{chart_html}</div>
             </div>
             
-            <div id="tax" class="section hidden">
-                <h1>Simulador Fiscal</h1>
-                <div class="card" style="max-width:400px;">
-                    <label>Faturamento:</label><input type="number" id="fat" class="input-box">
-                    <button onclick="document.getElementById('res-tax').innerHTML='Análise Concluída.'">Simular</button>
-                    <div id="res-tax" style="margin-top:10px; color:#ffd700;"></div>
-                </div>
-            </div>
-
-            <div id="worker" class="section hidden">
-                <h1>Gestão CLT vs PJ</h1>
-                <div class="card" style="max-width:400px;">
-                    <label>Salário:</label><input type="number" id="sal" class="input-box">
-                    <button onclick="document.getElementById('res-work').innerHTML='Equivalência PJ calculada.'">Comparar</button>
-                    <div id="res-work" style="margin-top:10px; color:#ffd700;"></div>
+            <div id="admin" class="section hidden">
+                <h1>Painel de Controle Soberano</h1>
+                <div class="admin-only">
+                    <h3>Últimos Acessos ao Sistema (Interesse Social)</h3>
+                    <ul>{audit_list}</ul>
                 </div>
             </div>
         </div>
@@ -87,17 +101,9 @@ async def dashboard(cpf: str = Form(...), input_code: str = Form(...)):
                 document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
                 event.target.classList.add('active');
             }}
-
             function gerarPDF() {{
-                const elemento = document.getElementById('conteudo-relatorio');
-                const opcoes = {{
-                    margin: 10,
-                    filename: 'Relatorio_MoneyLayer.pdf',
-                    image: {{ type: 'jpeg', quality: 0.98 }},
-                    html2canvas: {{ scale: 2, backgroundColor: '#050505' }},
-                    jsPDF: {{ unit: 'mm', format: 'a4', orientation: 'portrait' }}
-                }};
-                html2pdf().set(opcoes).from(elemento).save();
+                const element = document.getElementById('relatorio');
+                html2pdf().set({{ margin: 10, filename: 'MoneyLayer_Audit.pdf', html2canvas: {{ scale: 2, backgroundColor: '#050505' }} }}).from(element).save();
             }}
         </script>
     </body>
