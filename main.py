@@ -39,32 +39,76 @@ def get_market_data():
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     hist = get_market_data()
-    val = round(hist['Close'].iloc[-1], 2) if hist is not None else "5.40"
+    val = round(hist['Close'].iloc[-1], 2) if hist is not None else 5.40
+    
+    # Criar gráfico pequeno e elegante para a home
+    fig = go.Figure(data=go.Scatter(x=hist.index, y=hist['Close'], line=dict(color='#ffcc00', width=2)))
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0), height=100,
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(visible=False), yaxis=dict(visible=False)
+    )
+    chart_mini = fig.to_html(full_html=False, config={'displayModeBar': False})
+
     return f"""
     <html>
         <head>
-            <title>MoneyLayer | Sovereignty</title>
+            <title>MoneyLayer | Global Dashboard</title>
             <style>
-                :root {{ --gold: #ffcc00; --bg: #050505; }}
-                body {{ background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }}
-                .card {{ background: #111; border: 1px solid #222; padding: 40px; border-radius: 20px; text-align: center; width: 350px; border-top: 4px solid var(--gold); }}
-                h1 {{ color: var(--gold); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 0; }}
-                .val {{ font-size: 32px; font-weight: bold; margin: 20px 0; color: #fff; }}
-                input {{ background: #1a1a1a; border: 1px solid #333; color: var(--gold); padding: 15px; width: 100%; border-radius: 8px; margin-bottom: 10px; box-sizing: border-box; text-align: center; }}
-                .btn {{ background: var(--gold); color: #000; padding: 15px; width: 100%; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; text-transform: uppercase; }}
-                .btn-audit {{ background: transparent; color: #666; border: none; margin-top: 20px; cursor: pointer; text-decoration: underline; font-size: 12px; }}
+                :root {{ --gold: #ffcc00; --bg: #0a0a0a; --surface: #151515; }}
+                body {{ background: var(--bg); color: #fff; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 20px; }}
+                .container {{ max-width: 500px; margin: auto; }}
+                .header {{ text-align: center; margin-bottom: 30px; border-bottom: 1px solid #222; padding-bottom: 20px; }}
+                h1 {{ color: var(--gold); letter-spacing: 2px; margin: 0; }}
+                .social-tag {{ font-size: 10px; color: #555; }}
+                
+                .stat-card {{ background: var(--surface); padding: 20px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #222; }}
+                .stat-label {{ font-size: 12px; color: #888; text-transform: uppercase; }}
+                .stat-value {{ font-size: 28px; font-weight: bold; color: var(--gold); }}
+                
+                .tool-section {{ background: #000; border: 1px solid #ffcc0033; padding: 20px; border-radius: 12px; }}
+                input {{ background: #1a1a1a; border: 1px solid #333; color: var(--gold); padding: 12px; width: 100%; border-radius: 6px; margin: 10px 0; box-sizing: border-box; }}
+                .btn {{ background: var(--gold); color: #000; padding: 12px; width: 100%; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }}
+                
+                .footer {{ text-align: center; margin-top: 40px; font-size: 10px; color: #333; }}
             </style>
         </head>
         <body>
-            <div class="card">
-                <h1>MoneyLayer</h1>
-                <div style="font-size: 10px; color: #444; letter-spacing: 2px;">THE ORBE SYSTEMS</div>
-                <div class="val">R$ {val}</div>
-                <form action="/auth/identify" method="post">
-                    <input type="text" name="cpf" placeholder="SEU CPF" required>
-                    <button type="submit" class="btn">Validar Camada</button>
-                </form>
-                <button class="btn-audit" onclick="location.href='/audit'">Visualizar Auditoria de Valores Globais</button>
+            <div class="container">
+                <div class="header">
+                    <h1>MONEYLAYER</h1>
+                    <div class="social-tag">THE ORBE SYSTEMS - SOVEREIGNTY UNIT</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Valor Global de Referência (USD/BRL)</div>
+                    <div class="stat-value">R$ {val}</div>
+                    <div style="margin-top:10px;">{chart_mini}</div>
+                </div>
+
+                <div class="tool-section">
+                    <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">VALIDAÇÃO DE IDENTIDADE</div>
+                    <form action="/auth/identify" method="post">
+                        <input type="text" name="cpf" placeholder="DIGITE SEU CPF" required>
+                        <button type="submit" class="btn">ATIVAR CAMADA SOCIAL</button>
+                    </form>
+                </div>
+
+                <div style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="stat-card" style="padding: 15px; margin:0;">
+                        <div class="stat-label">Status</div>
+                        <div style="color: #00ff00; font-size: 14px;">● ONLINE</div>
+                    </div>
+                    <div class="stat-card" style="padding: 15px; margin:0; cursor:pointer;" onclick="location.href='/audit'">
+                        <div class="stat-label">Auditoria</div>
+                        <div style="color: var(--gold); font-size: 14px;">VERIFICAR →</div>
+                    </div>
+                </div>
+
+                <div class="footer">
+                    PROJETO DE INTERESSE SOCIAL PARA CONTROLE DE VALORES GLOBAIS<br>
+                    © 2026 THE ORBE SYSTEMS
+                </div>
             </div>
         </body>
     </html>
@@ -74,32 +118,11 @@ async def home(request: Request):
 async def audit_page():
     hist = get_market_data()
     if hist is None: return "Erro ao carregar dados."
-    
     fig = go.Figure(data=go.Scatter(x=hist.index, y=hist['Close'], line=dict(color='#ffcc00', width=3)))
-    fig.update_layout(
-        title="Auditoria de Valores Globais (7 Dias)",
-        paper_bgcolor='#050505', plot_bgcolor='#050505',
-        font=dict(color='#fff'),
-        xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#222')
-    )
-    
+    fig.update_layout(title="Relatório de Auditoria de Câmbio", paper_bgcolor='#0a0a0a', plot_bgcolor='#0a0a0a', font=dict(color='#fff'))
     chart_html = fig.to_html(full_html=False)
-    
-    return f"""
-    <html>
-        <head><title>Auditoria | MoneyLayer</title></head>
-        <body style="background:#050505; color:#fff; font-family:sans-serif; padding: 20px;">
-            <a href="/" style="color:#ffcc00; text-decoration:none;">← Voltar ao Painel</a>
-            <div style="margin-top: 30px; background:#111; padding: 20px; border-radius: 15px; border: 1px solid #222;">
-                {chart_html}
-            </div>
-            <div style="text-align:center; margin-top: 20px; color:#444; font-size: 12px;">
-                RELATÓRIO DE INTERESSE SOCIAL GERADO PELA THE ORBE SYSTEMS
-            </div>
-        </body>
-    </html>
-    """
+    return f"<body style='background:#0a0a0a; color:white; padding:20px;'><a href='/' style='color:#ffcc00;'>← Voltar</a>{chart_html}</body>"
 
 @app.post("/auth/identify")
 async def identify(cpf: str = Form(...)):
-    return {{"status": "Sincronizado", "cpf": cpf, "msg": "Governação Ativa"}}
+    return {{"status": "Sucesso", "servico": "MoneyLayer 2.0", "msg": "Valores Globais Sincronizados"}}
