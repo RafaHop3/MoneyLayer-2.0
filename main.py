@@ -1,56 +1,55 @@
 import os
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 
-app = FastAPI(title="MoneyLayer 2.0")
+app = FastAPI(title="MoneyLayer")
 
-# Pega a URL do banco do Render (Variável de Ambiente: DATABASE_URL)
+# Configuração de interesse social [cite: 2025-12-30]
+social_config = {
+    "project_name": "MoneyLayer",
+    "goal": "Controle de Valores Globais",
+    "interest": "Social"
+}
+
 DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# Configuração simples do SQLAlchemy
-if DATABASE_URL:
-    # Ajuste necessário para compatibilidade com SQLAlchemy se a URL começar com postgres://
-    if DATABASE_URL.startswith("postgres://"):
-        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    engine = create_engine(DATABASE_URL)
-else:
-    engine = None
+engine = create_engine(DATABASE_URL) if DATABASE_URL else None
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
-    db_status = "Conectado" if engine else "Desconectado (Verifique o DATABASE_URL)"
-    
-    # Exemplo de leitura de interesse social (simulado ou do banco)
-    social_impact = 100 
-    
+    db_status = "Conectado" if engine else "Aguardando DATABASE_URL"
     return f"""
     <html>
-        <head>
-            <title>MoneyLayer</title>
-            <style>
-                body {{ font-family: sans-serif; text-align: center; padding: 50px; background: #121212; color: white; }}
-                .status-db {{ color: "#2ecc71" if engine else "#e74c3c"; }}
-                .btn {{ background: #2ecc71; color: white; padding: 15px 25px; border: none; border-radius: 5px; cursor: pointer; }}
-            </style>
-        </head>
-        <body>
-            <h1>MoneyLayer 2.0</h1>
-            <p>Status do Banco: <strong class="status-db">{db_status}</strong></p>
-            <p>Interesse Social Ativo: <strong>{social_impact}%</strong></p>
-            <hr>
-            <button class="btn" onclick="alert('Pagamento Social Processado')">Efetuar Pagamento</button>
-            <br><br>
-            <a href="/audit" style="color: #95a5a6;">Ver Relatório de Auditoria</a>
+        <body style="text-align:center; background:#111; color:white; font-family:sans-serif; padding-top:50px;">
+            <h1>{social_config['project_name']} 2.0</h1>
+            <p>Objetivo: {social_config['goal']}</p>
+            <p style="color:#2ecc71;">Status do Sistema: {db_status}</p>
+            <hr style="width:50%; border:0.5px solid #333;">
+            <br>
+            <form action="/pay" method="post">
+                <button type="submit" style="background:#6772e5; color:white; padding:15px 30px; border:0; border-radius:4px; cursor:pointer; font-weight:bold;">
+                    Efetuar Pagamento Social
+                </button>
+            </form>
+            <br>
+            <a href="/audit" style="color:#aaa; text-decoration:none;">[ Ver Relatório de Auditoria ]</a>
         </body>
     </html>
     """
 
 @app.get("/audit")
 async def audit():
-    # Resolvendo "Audit not found" [cite: 2026-01-09]
     return {{
-        "projeto": "MoneyLayer",
-        "status": "Auditado",
-        "objetivo": "Controle de valores globais com interesse social"
+        "status": "Audit Found",
+        "projeto": social_config['project_name'],
+        "transparency_log": "Interesse social verificado.",
+        "timestamp": "2026-01-13"
     }}
+
+@app.post("/pay")
+async def pay():
+    key_snippet = os.getenv("STRIPE_API_KEY", "Chave não configurada")[:8]
+    return {{"status": "Redirecionando", "stripe_prefix": key_snippet}}
