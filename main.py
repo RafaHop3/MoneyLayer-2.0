@@ -1,32 +1,33 @@
 import os, random
-from fastapi import FastAPI, Form, Request, HTTPException
+from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from sqlalchemy import create_engine, Column, String, Integer, Boolean, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Configuração de Banco de Dados Resiliente
-DATABASE_URL = os.getenv("DATABASE_URL")
-if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
+# Configuração de Banco de Dados Resiliente (Render + Local)
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
+if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(DATABASE_URL or "sqlite:///./test.db")
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
-    cpf = Column(String(14), unique=True, index=True)
+    cpf = Column(String, unique=True, index=True)
+    is_active = Column(Boolean, default=True)
 
-# Tenta criar a tabela/coluna automaticamente no startup
+# Migração Automática de Coluna
 try:
     Base.metadata.create_all(bind=engine)
     with engine.connect() as conn:
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cpf VARCHAR(14) UNIQUE;"))
         conn.commit()
 except Exception as e:
-    print(f"Aviso na migração: {e}")
+    print(f"Migration Status: {e}")
 
 app = FastAPI(title="MoneyLayer 2.0")
 
@@ -35,29 +36,29 @@ async def home(request: Request):
     return """
     <html>
         <head>
-            <title>MoneyLayer 2.0 - Sovereignty</title>
+            <title>MoneyLayer 2.0 | Orbe Systems</title>
             <style>
-                body { background: #0a0a0a; color: #eee; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-                .container { background: #111; padding: 40px; border-radius: 15px; border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center; width: 350px; }
-                h1 { color: #ffcc00; letter-spacing: 2px; margin-bottom: 5px; }
-                .subtitle { color: #666; font-size: 12px; margin-bottom: 30px; text-transform: uppercase; }
-                input { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #444; color: #ffcc00; border-radius: 5px; text-align: center; }
-                .btn-verify { width: 100%; padding: 12px; background: #ffcc00; color: #000; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; transition: 0.3s; }
-                .btn-verify:hover { background: #e6b800; }
-                .btn-pay { margin-top: 15px; background: transparent; color: #ffcc00; border: 1px solid #ffcc00; width: 100%; padding: 10px; border-radius: 5px; cursor: pointer; }
-                .footer { margin-top: 30px; font-size: 10px; color: #444; letter-spacing: 1px; }
+                body { background: #000; color: #fff; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+                .panel { border: 1px solid #ffcc00; padding: 40px; border-radius: 5px; text-align: center; background: #050505; box-shadow: 0 0 20px rgba(255, 204, 0, 0.2); width: 400px; }
+                h1 { color: #ffcc00; font-size: 28px; letter-spacing: 5px; margin-bottom: 5px; }
+                .social-tag { color: #444; font-size: 10px; margin-bottom: 30px; letter-spacing: 2px; }
+                input { background: #000; border: 1px solid #333; color: #ffcc00; padding: 15px; width: 100%; box-sizing: border-box; margin-bottom: 10px; text-align: center; }
+                .btn { background: #ffcc00; color: #000; padding: 15px; width: 100%; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; margin-bottom: 10px; }
+                .btn-audit { background: transparent; color: #555; border: 1px solid #222; font-size: 11px; padding: 8px; width: 100%; cursor: pointer; }
+                .brand { margin-top: 40px; color: #333; font-size: 10px; font-weight: bold; }
             </style>
         </head>
         <body>
-            <div class="container">
+            <div class="panel">
                 <h1>MONEYLAYER</h1>
-                <div class="subtitle">Identificação de Camada</div>
+                <div class="social-tag">GLOBAL GOVERNANCE & SOCIAL INTEREST</div>
                 <form action="/auth/identify" method="post">
-                    <input type="text" name="cpf" placeholder="000.000.000-00" required>
-                    <button type="submit" class="btn-verify">VERIFICAR</button>
+                    <input type="text" name="cpf" placeholder="IDENTIFICAÇÃO (CPF)" required>
+                    <button type="submit" class="btn">Validar Camada</button>
                 </form>
-                <button class="btn-pay" onclick="alert('Sistema de Auditoria: Redirecionando para Gateway de Pagamento Social...')">EFETUAR PAGAMENTO</button>
-                <div class="footer">THE ORBE SYSTEMS</div>
+                <button class="btn" style="background: #111; color: #ffcc00; border: 1px solid #ffcc00;" onclick="alert('Iniciando Pagamento de Auditoria Social...')">Efetuar Pagamento</button>
+                <button class="btn-audit">RELATÓRIO DE AUDITORIA DISPONÍVEL</button>
+                <div class="brand">THE ORBE SYSTEMS</div>
             </div>
         </body>
     </html>
@@ -65,9 +66,15 @@ async def home(request: Request):
 
 @app.post("/auth/identify")
 async def identify(cpf: str = Form(...)):
-    # Aqui entra sua lógica de interesse social e controle global
-    return {"status": "Processando", "camada": "Social Interest v1", "cpf_detectado": cpf}
+    # Simulação IA de Interesse Social
+    val_global = round(random.uniform(1.1, 9.9), 2)
+    return {
+        "status": "Acesso Autorizado",
+        "governance_token": f"SOC-{random.randint(1000, 9999)}",
+        "social_interest_index": f"{val_global}%",
+        "message": "Valores globais sincronizados com o CPF informado."
+    }
 
 @app.get("/health")
 async def health():
-    return {"status": "active", "service": "MoneyLayer 2.0"}
+    return {"status": "online", "version": "2.0.1"}
