@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 app = FastAPI()
 
-# Database & Security Setup
+# Database Setup
 DATABASE_URL = os.getenv("DATABASE_URL").replace("postgres://", "postgresql://", 1)
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -24,11 +24,13 @@ Base.metadata.create_all(bind=engine)
 @app.post("/dashboard", response_class=HTMLResponse)
 async def dashboard(cpf: str = Form(...), input_code: str = Form(...)):
     # Inteligência de Mercado: Moedas e Ações
-    assets = ["USDBRL=X", "BTC-USD", "ETH-USD", "PETR4.SA", "AAPL"]
+    assets = ["USDBRL=X", "EURBRL=X", "BTC-USD", "PETR4.SA"]
     data = yf.download(assets, period="5d", interval="1h")['Close']
     
-    # Criando gráfico de performance comparativa
-    fig = px.line(data, title="Fluxo Global de Ativos (5 Dias)", template="plotly_dark")
+    dolar = data['USDBRL=X'].iloc[-1]
+    euro = data['EURBRL=X'].iloc[-1]
+    
+    fig = px.line(data, title="Fluxo de Moedas e Ativos (Tempo Real)", template="plotly_dark")
     fig.update_layout(paper_bgcolor="#0a0a0a", plot_bgcolor="#0a0a0a", font_color="#ffd700")
     chart_html = fig.to_html(full_html=False)
 
@@ -42,37 +44,46 @@ async def dashboard(cpf: str = Form(...), input_code: str = Form(...)):
             .nav-item {{ padding: 12px; cursor: pointer; color: #888; transition: 0.3s; border-radius: 8px; margin-bottom: 5px; }}
             .nav-item:hover, .active {{ background: #1a1a1a; color: #ffd700; }}
             .card {{ background: #111; border: 1px solid #222; padding: 20px; border-radius: 12px; margin-bottom: 20px; }}
+            .input-box {{ background:#000; border:1px solid #333; color:#ffd700; padding:10px; border-radius:5px; width:100%; margin-top:10px; }}
             .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }}
             .hidden {{ display: none; }}
+            button {{ background:#ffd700; color:#000; border:0; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer; margin-top:10px; width:100%; }}
         </style>
     </head>
     <body>
         <div class="sidebar">
             <h2 style="color:#ffd700">MONEYLAYER <span style="font-weight:200">2.0</span></h2>
             <div style="margin-top:30px;">
-                <div class="nav-item active" onclick="tab('market')">Inteligência Global</div>
-                <div class="nav-item" onclick="tab('business')">Gestão Business</div>
-                <div class="nav-item" onclick="tab('worker')">Gestão Individual</div>
+                <div class="nav-item active" onclick="tab('market')">Mercado Global</div>
+                <div class="nav-item" onclick="tab('tax')">Calculadora Fiscal (PJ)</div>
+                <div class="nav-item" onclick="tab('worker')">Plano de Liberdade (CLT)</div>
             </div>
         </div>
         <div class="main">
             <div id="market" class="section">
-                <h1>Monitor de Ativos Soberanos</h1>
+                <h1>Inteligência de Câmbio</h1>
                 <div class="grid">
-                    <div class="card"><h4>Dólar (BRL)</h4><p style="color:#2ecc71; font-size:1.5em;">R$ {data['USDBRL=X'].iloc[-1]:.2f}</p></div>
-                    <div class="card"><h4>Bitcoin</h4><p style="color:#f1c40f; font-size:1.5em;">$ {data['BTC-USD'].iloc[-1]:.0f}</p></div>
+                    <div class="card"><h4>Dólar Comercial</h4><p style="color:#2ecc71; font-size:1.5em;">R$ {dolar:.2f}</p></div>
+                    <div class="card"><h4>Euro</h4><p style="color:#3498db; font-size:1.5em;">R$ {euro:.2f}</p></div>
                 </div>
                 <div class="card">{chart_html}</div>
             </div>
             
-            <div id="business" class="section hidden">
-                <h1>Painel da Empresa</h1>
-                <div class="card"><h3>Análise de Capital de Giro</h3><p>Configure seus custos fixos para calcular o ROI social.</p></div>
+            <div id="tax" class="section hidden">
+                <h1>Simulador de Carga Tributária</h1>
+                <div class="card" style="max-width:400px;">
+                    <label>Faturamento Mensal Médio (R$):</label>
+                    <input type="number" id="faturamento" class="input-box" placeholder="Ex: 20000">
+                    <label>Folha de Pagamento/Pró-labore (R$):</label>
+                    <input type="number" id="folha" class="input-box" placeholder="Ex: 6000">
+                    <button onclick="calcularFiscal()">Analisar Melhor Regime</button>
+                    <div id="resultado-fiscal" style="margin-top:20px; color:#ffd700; font-weight:bold;"></div>
+                </div>
             </div>
 
             <div id="worker" class="section hidden">
-                <h1>Painel do Trabalhador</h1>
-                <div class="card"><h3>Plano de Liberdade</h3><p>Calculando juros compostos para o CPF {cpf}...</p></div>
+                <h1>Visão do Trabalhador</h1>
+                <div class="card"><h3>Em breve: Simulador CLT vs PJ</h3><p>Compare benefícios e salários líquidos.</p></div>
             </div>
         </div>
         <script>
@@ -81,6 +92,19 @@ async def dashboard(cpf: str = Form(...), input_code: str = Form(...)):
                 document.getElementById(id).classList.remove('hidden');
                 document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
                 event.target.classList.add('active');
+            }}
+
+            function calcularFiscal() {{
+                let fat = document.getElementById('faturamento').value;
+                let folha = document.getElementById('folha').value;
+                let res = document.getElementById('resultado-fiscal');
+                let fatorR = folha / fat;
+                
+                if (fatorR >= 0.28) {{
+                    res.innerHTML = "Sugestão: Permaneça no Simples Nacional (Anexo III). Seu Fator R está otimizado!";
+                }} else {{
+                    res.innerHTML = "Alerta: Você pode estar pagando 15,5% de imposto. Aumente seu Pró-labore ou migre para o Lucro Presumido.";
+                }}
             }}
         </script>
     </body>
