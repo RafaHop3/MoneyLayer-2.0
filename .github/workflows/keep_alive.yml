@@ -1,0 +1,15 @@
+name: MoneyLayer Keep Alive
+
+on:
+  schedule:
+    # O GitHub Actions rodará esse robô a cada 10 minutos automaticamente
+    - cron: '*/10 * * * *' 
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviando pulso para o Render
+        run: |
+          curl -I https://moneylayer-2-0.onrender.com
