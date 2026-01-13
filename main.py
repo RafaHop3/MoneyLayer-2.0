@@ -1,14 +1,13 @@
-import os, random, smtplib
-from email.mime.text import MIMEText
-from fastapi import FastAPI, Form, Depends, HTTPException
+import os, random
+from fastapi import FastAPI, Form, HTTPException
 from fastapi.responses import HTMLResponse
 from sqlalchemy import create_engine, Column, String, Integer, Boolean
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker
 
 app = FastAPI(title="MoneyLayer 2.0")
 
-# Configurações de Ambiente [cite: 2026-01-13]
+# Banco de Dados
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
@@ -17,50 +16,50 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Modelo de Usuário com nível GOD
 class User(Base):
     __tablename__ = "users"
-    id = Column(Integer, primary_key=True, index=True)
-    cpf = Column(String, unique=True, index=True)
-    email = Column(String, index=True)
-    active_code = Column(String)
-    is_god = Column(Boolean, default=False) # Poderes exclusivos [cite: 2026-01-13]
+    id = Column(Integer, primary_key=True)
+    cpf = Column(String, unique=True)
+    is_god = Column(Boolean, default=False)
 
 Base.metadata.create_all(bind=engine)
 
-# Função para identificar o seu CPF como GOD
-YOUR_GOD_CPF = "86001396000" # Seu CPF fornecido anteriormente [cite: 2026-01-13]
+YOUR_GOD_CPF = "86001396000"
 
-@app.post("/auth/request")
-async def auth_request(cpf: str = Form(...), email: str = Form(...)):
+@app.get("/", response_class=HTMLResponse)
+async def home():
+    return """
+    <body style="background:#000; color:#2ecc71; font-family:monospace; text-align:center; padding:50px;">
+        <h1 style="color:white;">MONEYLAYER 2.0 - SISTEMA ATIVO</h1>
+        <p>Aguardando Identificação de Interesse Social...</p>
+        <form action="/login" method="post" style="border:1px solid #2ecc71; display:inline-block; padding:20px;">
+            <input type="text" name="cpf" placeholder="DIGITE SEU CPF" style="background:#000; color:#2ecc71; border:1px solid #2ecc71; padding:10px;"><br><br>
+            <button type="submit" style="background:#2ecc71; color:#000; border:0; padding:10px 20px; font-weight:bold; cursor:pointer;">ACESSAR CAMADA</button>
+        </form>
+    </body>
+    """
+
+@app.post("/login")
+async def login(cpf: str = Form(...)):
     db = SessionLocal()
-    code = str(random.randint(100000, 999999))
     user = db.query(User).filter(User.cpf == cpf).first()
     
     if not user:
-        # Se for o seu CPF, ele nasce como GOD ID 1
-        is_god_status = (cpf == YOUR_GOD_CPF)
-        user = User(cpf=cpf, email=email, active_code=code, is_god=is_god_status)
+        is_god = (cpf == YOUR_GOD_CPF)
+        user = User(cpf=cpf, is_god=is_god)
         db.add(user)
-    else:
-        user.active_code = code
+        db.commit()
     
-    db.commit()
-    db.close()
-    # Lógica de envio de e-mail usando sua senha ecqqpkdvmupwkekd [cite: 2026-01-13]
-    return {"status": "success", "is_god_candidate": (cpf == YOUR_GOD_CPF)}
-
-@app.get("/god/panel")
-async def god_panel(cpf: str):
-    db = SessionLocal()
-    user = db.query(User).filter(User.cpf == cpf).first()
-    if not user or not user.is_god:
-        db.close()
-        raise HTTPException(status_code=403, detail="Acesso negado. Apenas para o usuário GOD.")
-    
-    db.close()
-    return {
-        "admin": "Bem-vindo, ID 1",
-        "powers": "Controle total de valores globais e interesse social",
-        "status": "Online 24/7"
-    }
+    if user.is_god:
+        return HTMLResponse(f"""
+            <body style="background:#000; color:#ffd700; font-family:monospace; text-align:center; padding:50px;">
+                <h1>BEM-VINDO, USUÁRIO GOD (ID 1)</h1>
+                <p>STATUS: CONTROLE TOTAL ATIVADO</p>
+                <div style="border:2px solid #ffd700; padding:20px; margin-top:20px;">
+                    <h3>CONTROLE DE VALORES GLOBAIS</h3>
+                    <button style="padding:10px;">AJUSTAR TAXA SOCIAL</button>
+                    <button style="padding:10px;">AUDITAR PAGAMENTOS</button>
+                </div>
+            </body>
+        """)
+    return {"status": "Acesso Comum", "cpf": cpf}
