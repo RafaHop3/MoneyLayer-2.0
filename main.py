@@ -1,7 +1,7 @@
-import os, random, yfinance as yf
+import os, random, yfinance as yf, plotly.graph_objects as go
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
-from sqlalchemy import create_engine, Column, String, Integer, Boolean, text
+from sqlalchemy import create_engine, Column, String, Integer, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -28,52 +28,73 @@ except: pass
 
 app = FastAPI()
 
-# --- LÓGICA DE INTERESSE SOCIAL ---
-def get_global_index():
+def get_market_data():
     try:
-        data = yf.Ticker("USDBRL=X").history(period="1d")
-        price = data['Close'].iloc[-1]
-        return round(price, 2)
+        ticker = yf.Ticker("USDBRL=X")
+        hist = ticker.history(period="7d")
+        return hist
     except:
-        return 5.40  # Valor fallback
+        return None
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    val = get_global_index()
+    hist = get_market_data()
+    val = round(hist['Close'].iloc[-1], 2) if hist is not None else "5.40"
     return f"""
     <html>
         <head>
-            <title>MoneyLayer | The Orbe Systems</title>
-            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>MoneyLayer | Sovereignty</title>
             <style>
-                :root {{ --gold: #ffcc00; --bg: #050505; --card: #111; }}
+                :root {{ --gold: #ffcc00; --bg: #050505; }}
                 body {{ background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }}
-                .glass-card {{ background: var(--card); border: 1px solid #222; padding: 40px; border-radius: 20px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.8); width: 90%; max-width: 400px; }}
-                h1 {{ color: var(--gold); letter-spacing: 4px; font-weight: 800; margin-bottom: 5px; text-transform: uppercase; }}
-                .tagline {{ color: #555; font-size: 11px; letter-spacing: 2px; margin-bottom: 30px; }}
-                .ticker {{ background: #000; border-radius: 10px; padding: 15px; margin-bottom: 20px; border: 1px dashed #333; }}
-                .ticker-val {{ color: var(--gold); font-size: 24px; font-weight: bold; }}
-                input {{ background: #1a1a1a; border: 1px solid #333; color: var(--gold); padding: 15px; width: 100%; border-radius: 8px; margin-bottom: 15px; box-sizing: border-box; }}
-                .btn-primary {{ background: var(--gold); color: #000; padding: 15px; width: 100%; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.3s; text-transform: uppercase; }}
-                .btn-primary:hover {{ transform: scale(1.02); box-shadow: 0 0 15px rgba(255,204,0,0.3); }}
-                .btn-outline {{ background: transparent; color: var(--gold); border: 1px solid var(--gold); padding: 12px; width: 100%; border-radius: 8px; margin-top: 10px; cursor: pointer; font-size: 12px; }}
-                .footer {{ margin-top: 40px; font-size: 10px; color: #333; letter-spacing: 1px; }}
+                .card {{ background: #111; border: 1px solid #222; padding: 40px; border-radius: 20px; text-align: center; width: 350px; border-top: 4px solid var(--gold); }}
+                h1 {{ color: var(--gold); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 0; }}
+                .val {{ font-size: 32px; font-weight: bold; margin: 20px 0; color: #fff; }}
+                input {{ background: #1a1a1a; border: 1px solid #333; color: var(--gold); padding: 15px; width: 100%; border-radius: 8px; margin-bottom: 10px; box-sizing: border-box; text-align: center; }}
+                .btn {{ background: var(--gold); color: #000; padding: 15px; width: 100%; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; text-transform: uppercase; }}
+                .btn-audit {{ background: transparent; color: #666; border: none; margin-top: 20px; cursor: pointer; text-decoration: underline; font-size: 12px; }}
             </style>
         </head>
         <body>
-            <div class="glass-card">
+            <div class="card">
                 <h1>MoneyLayer</h1>
-                <div class="tagline">Global Value Governance</div>
-                <div class="ticker">
-                    <div style="font-size: 10px; color: #666;">Câmbio Global (USD/BRL)</div>
-                    <div class="ticker-val">R$ {val}</div>
-                </div>
+                <div style="font-size: 10px; color: #444; letter-spacing: 2px;">THE ORBE SYSTEMS</div>
+                <div class="val">R$ {val}</div>
                 <form action="/auth/identify" method="post">
-                    <input type="text" name="cpf" placeholder="IDENTIFICAÇÃO DE CAMADA" required>
-                    <button type="submit" class="btn-primary">Validar Governança</button>
+                    <input type="text" name="cpf" placeholder="SEU CPF" required>
+                    <button type="submit" class="btn">Validar Camada</button>
                 </form>
-                <button class="btn-outline" onclick="location.href='/audit'">Acessar Auditoria</button>
-                <div class="footer">POWERED BY THE ORBE SYSTEMS</div>
+                <button class="btn-audit" onclick="location.href='/audit'">Visualizar Auditoria de Valores Globais</button>
+            </div>
+        </body>
+    </html>
+    """
+
+@app.get("/audit", response_class=HTMLResponse)
+async def audit_page():
+    hist = get_market_data()
+    if hist is None: return "Erro ao carregar dados."
+    
+    fig = go.Figure(data=go.Scatter(x=hist.index, y=hist['Close'], line=dict(color='#ffcc00', width=3)))
+    fig.update_layout(
+        title="Auditoria de Valores Globais (7 Dias)",
+        paper_bgcolor='#050505', plot_bgcolor='#050505',
+        font=dict(color='#fff'),
+        xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#222')
+    )
+    
+    chart_html = fig.to_html(full_html=False)
+    
+    return f"""
+    <html>
+        <head><title>Auditoria | MoneyLayer</title></head>
+        <body style="background:#050505; color:#fff; font-family:sans-serif; padding: 20px;">
+            <a href="/" style="color:#ffcc00; text-decoration:none;">← Voltar ao Painel</a>
+            <div style="margin-top: 30px; background:#111; padding: 20px; border-radius: 15px; border: 1px solid #222;">
+                {chart_html}
+            </div>
+            <div style="text-align:center; margin-top: 20px; color:#444; font-size: 12px;">
+                RELATÓRIO DE INTERESSE SOCIAL GERADO PELA THE ORBE SYSTEMS
             </div>
         </body>
     </html>
@@ -81,16 +102,4 @@ async def home(request: Request):
 
 @app.post("/auth/identify")
 async def identify(cpf: str = Form(...)):
-    val = get_global_index()
-    # IA de Simulação vinculando o valor global ao CPF
-    interest_impact = round((val * random.random()), 4)
-    return {
-        "status": "Sincronizado",
-        "protocol": f"ORBE-{random.randint(10000, 99999)}",
-        "impacto_social": f"{interest_impact}%",
-        "global_reference": val
-    }
-
-@app.get("/audit")
-async def audit():
-    return {"status": "Audit Found", "last_check": "Just now", "system": "Protected"}
+    return {{"status": "Sincronizado", "cpf": cpf, "msg": "Governação Ativa"}}
