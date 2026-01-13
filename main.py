@@ -1,11 +1,11 @@
-import os, random, time
+import os, random, datetime
 from fastapi import FastAPI, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse
-from sqlalchemy import create_engine, Column, String, Integer, Boolean
+from sqlalchemy import create_engine, Column, String, Integer, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-app = FastAPI(title="MoneyLayer 2.0 Security Plus")
+app = FastAPI(title="MoneyLayer 2.0 - Cyber Sentinel")
 
 # Banco de Dados
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -16,47 +16,58 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# Modelo com campos de segurança
+# Modelos: Usuários e Logs de Intrusão
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
     cpf = Column(String, unique=True)
     is_god = Column(Boolean, default=False)
-    is_banned = Column(Boolean, default=False) # Função de bloqueio
+    is_banned = Column(Boolean, default=False)
+
+class SecurityLog(Base):
+    __tablename__ = "security_logs"
+    id = Column(Integer, primary_key=True)
+    ip_address = Column(String)
+    attempted_cpf = Column(String)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    status = Column(String) # "Sucesso", "Falha", "Banido"
 
 Base.metadata.create_all(bind=engine)
 
 YOUR_GOD_CPF = "86001396000"
 
-@app.middleware("http")
-async def security_headers(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["X-Frame-Options"] = "DENY" # Previne Clickjacking
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
-
 @app.get("/", response_class=HTMLResponse)
 async def home():
     return """
     <body style="background:#000; color:#2ecc71; font-family:monospace; text-align:center; padding:50px;">
-        <h1 style="color:white;">MONEYLAYER 2.0 - PROTEÇÃO ATIVA</h1>
-        <p>[SISTEMA MONITORADO CONTRA INTRUSÃO]</p>
+        <h1 style="color:white;">MONEYLAYER 2.0 - SISTEMA PROTEGIDO</h1>
+        <p>[SEGURANÇA DE CAMADA ATIVA]</p>
         <form action="/login" method="post" style="border:1px solid #2ecc71; display:inline-block; padding:20px;">
-            <input type="text" name="cpf" placeholder="IDENTIFICAÇÃO" required style="background:#000; color:#2ecc71; border:1px solid #2ecc71; padding:10px;"><br><br>
-            <button type="submit" style="background:#2ecc71; color:#000; border:0; padding:10px 20px; font-weight:bold; cursor:pointer;">ACESSAR CAMADA</button>
+            <input type="text" name="cpf" placeholder="CPF DE ACESSO" required style="background:#000; color:#2ecc71; border:1px solid #2ecc71; padding:10px;"><br><br>
+            <button type="submit" style="background:#2ecc71; color:#000; border:0; padding:10px 20px; font-weight:bold; cursor:pointer;">VALIDAR INTERESSE SOCIAL</button>
         </form>
     </body>
     """
 
 @app.post("/login", response_class=HTMLResponse)
-async def login(cpf: str = Form(...)):
+async def login(request: Request, cpf: str = Form(...)):
     db = SessionLocal()
-    # Proteção básica contra SQL Injection via ORM
+    client_ip = request.client.host
     user = db.query(User).filter(User.cpf == cpf).first()
     
-    if user and user.is_banned:
+    status = "Falha"
+    if user:
+        if user.is_banned: status = "Banido"
+        else: status = "Sucesso"
+    
+    # Registrar log de segurança [cite: 2026-01-13]
+    new_log = SecurityLog(ip_address=client_ip, attempted_cpf=cpf, status=status)
+    db.add(new_log)
+    
+    if status == "Banido":
+        db.commit()
         db.close()
-        return "<body style='background:red; color:white; text-align:center; padding:100px;'><h1>ACESSO BLOQUEADO POR VIOLAÇÃO DE INTERESSE SOCIAL</h1></body>"
+        return "<body style='background:red; color:white; text-align:center; padding:100px;'><h1>IP BLOQUEADO: VIOLAÇÃO DETECTADA</h1></body>"
 
     if not user:
         is_god = (cpf == YOUR_GOD_CPF)
@@ -67,31 +78,28 @@ async def login(cpf: str = Form(...)):
     
     if user.is_god:
         all_users = db.query(User).all()
-        user_list = "".join([
-            f"<li>ID: {u.id} - CPF: {u.cpf} {'[BANNED]' if u.is_banned else ''} " 
-            f"<form action='/ban' method='post' style='display:inline;'><input type='hidden' name='target' value='{u.cpf}'><button type='submit'>Bloquear</button></form></li>" 
-            for u in all_users if not u.is_god
-        ])
+        all_logs = db.query(SecurityLog).order_by(SecurityLog.timestamp.desc()).limit(10).all()
+        
+        user_list = "".join([f"<li>ID: {u.id} - {u.cpf} {'[BAN]' if u.is_banned else ''}</li>" for u in all_users if not u.is_god])
+        log_list = "".join([f"<li>[{l.timestamp.strftime('%H:%M:%S')}] IP: {l.ip_address} - CPF: {l.attempted_cpf} ({l.status})</li>" for l in all_logs])
+        
         db.close()
         return f"""
-            <body style="background:#000; color:#ffd700; font-family:monospace; text-align:center; padding:50px;">
-                <h1>PAINEL GOD - MODO DEFESA</h1>
-                <div style="border:2px solid #ffd700; padding:20px; text-align:left; display:inline-block;">
-                    <h3>CONTROLE DE ACESSOS E AUDITORIA</h3>
-                    <ul>{user_list}</ul>
+            <body style="background:#000; color:#ffd700; font-family:monospace; padding:30px;">
+                <h1 style="text-align:center;">COMANDO SUPREMO - MONEYLAYER</h1>
+                <div style="display:flex; justify-content:space-around;">
+                    <div style="border:1px solid #ffd700; padding:15px; width:45%;">
+                        <h3>AUDITORIA DE USUÁRIOS</h3>
+                        <ul>{user_list}</ul>
+                    </div>
+                    <div style="border:1px solid red; padding:15px; width:45%; color:#ff4444;">
+                        <h3>LOGS DE INTRUSÃO (SENTINEL)</h3>
+                        <ul>{log_list}</ul>
+                    </div>
                 </div>
-                <br><br><a href="/" style="color:white;">Sair</a>
+                <p style="text-align:center;"><br><a href="/" style="color:white;">LOGOUT</a></p>
             </body>
         """
+    db.commit()
     db.close()
-    return f"<body style='background:#000; color:white; text-align:center; padding:50px;'><h1>LOGIN REALIZADO</h1><p>CPF: {cpf}</p><a href='/'>Voltar</a></body>"
-
-@app.post("/ban")
-async def ban_user(target: str = Form(...)):
-    db = SessionLocal()
-    user = db.query(User).filter(User.cpf == target).first()
-    if user and not user.is_god:
-        user.is_banned = True
-        db.commit()
-    db.close()
-    return HTMLResponse("<script>alert('Usuário banido!'); window.location.href='/';</script>")
+    return f"<body style='background:#000; color:white; text-align:center; padding:50px;'><h1>SISTEMA SOCIAL ATIVO</h1><p>Usuário: {cpf}</p><a href='/'>Voltar</a></body>"
