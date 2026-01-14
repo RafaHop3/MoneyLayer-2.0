@@ -1,8 +1,5 @@
-fastapi
-uvicorn
-sqlalchemy
+flask
+gunicorn
 psycopg2-binary
-python-multipart
-yfinance
-pandas
-plotly
+python-dotenv
+stripe
